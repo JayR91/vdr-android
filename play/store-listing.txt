@@ -1,0 +1,15 @@
+VDR — Video Downloader for Android
+
+VDR is a resumable download manager. It splits HTTP files into parallel
+byte-range segments, pauses and resumes mid-transfer, retries failed
+segments, and can cap bandwidth so the rest of the phone stays usable.
+
+Focus Guard pauses downloads on battery or Battery Saver, and slows
+transfers to 256 KB/s while you are using the app. Completed files are
+sorted into Videos, Documents, Zips, Audio, Images, or Other.
+
+Share a link from your browser into VDR, or paste a direct https file URL.
+
+VDR is free software under the GNU GPL v3, ported from the desktop VDR
+project. It downloads direct files only — it does not extract streams from
+YouTube or other video sites.
