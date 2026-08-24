@@ -1,25 +1,7 @@
 #!/bin/sh
-# Gradle start up script
-PRG="$0"
-while [ -h "$PRG" ] ; do
-    ls=`ls -ld "$PRG"`
-    link=`expr "$ls" : '.*-> \(.*\)$'`
-    if expr "$link" : '/.*' > /dev/null; then
-        PRG="$link"
-    else
-        PRG=`dirname "$PRG"`/"$link"
-    fi
-done
-SAVED="`pwd`"
-cd "`dirname \"$PRG\"`/" >/dev/null
-APP_HOME="`pwd -P`"
-cd "$SAVED" >/dev/null
-APP_NAME="Gradle"
-DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
-CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
-if [ -n "$JAVA_HOME" ] ; then
-    JAVACMD="$JAVA_HOME/bin/java"
-else
-    JAVACMD="java"
+DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+JAVACMD="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17}/bin/java"
+if [ ! -x "$JAVACMD" ]; then
+  JAVACMD=$(command -v java)
 fi
-exec "$JAVACMD" $DEFAULT_JVM_OPTS -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+exec "$JAVACMD" -Xmx64m -Xms64m -classpath "$DIR/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"

@@ -20,13 +20,19 @@ android {
 
     val keystoreProps = rootProject.file("keystore.properties")
     if (keystoreProps.exists()) {
-        val props = java.util.Properties().apply { keystoreProps.inputStream().use { load(it) } }
+        val props = keystoreProps.readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
+            .associate { line ->
+                val i = line.indexOf("=")
+                line.substring(0, i).trim() to line.substring(i + 1).trim()
+            }
         signingConfigs {
             create("release") {
-                storeFile = file(props.getProperty("storeFile"))
-                storePassword = props.getProperty("storePassword")
-                keyAlias = props.getProperty("keyAlias")
-                keyPassword = props.getProperty("keyPassword")
+                storeFile = file(props.getValue("storeFile"))
+                storePassword = props.getValue("storePassword")
+                keyAlias = props.getValue("keyAlias")
+                keyPassword = props.getValue("keyPassword")
             }
         }
     }
