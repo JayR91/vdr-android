@@ -13,9 +13,10 @@ android {
         applicationId = "com.jayr91.vdr"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.5.4"
+        versionCode = 12
+        versionName = "1.5.5"
         vectorDrawables.useSupportLibrary = true
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // No abiFilters: with FFmpeg gone the app ships no native libraries at
         // all, so every ABI is served by the same bytecode. Filtering here used
         // to shrink the FFmpeg kit; keeping it now would only drop x86_64
@@ -88,6 +89,10 @@ dependencies {
     // dependency: dropping it saved ~15 MiB of native libs and the LGPL
     // relinking obligation those libraries carry.
     testImplementation("junit:junit:4.13.2")
+    // On-device tests: Remuxer drives MediaExtractor/MediaMuxer, which only
+    // exist on a real device, so its coverage has to be instrumented.
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.json:json:20240303")
     debugImplementation("androidx.compose.ui:ui-tooling")
