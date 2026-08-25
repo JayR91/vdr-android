@@ -16,6 +16,7 @@ enum class DownloadStatus(val label: String) {
     DOWNLOADING("downloading"),
     PAUSED("paused"),
     HELD("focus hold"),
+    WIFI_HOLD("waiting for Wi‑Fi"),
     COMPLETED("completed"),
     ERROR("error"),
     CANCELLED("cancelled"),
@@ -27,6 +28,7 @@ data class TaskSnapshot(
     val displayName: String,
     val category: String,
     val destPath: String,
+    val contentUri: String?,
     val status: DownloadStatus,
     val totalBytes: Long?,
     val downloadedBytes: Long,
@@ -55,11 +57,17 @@ class DownloadTask(
     private val running = AtomicBoolean(true)
     private val cancelled = AtomicBoolean(false)
     private val userPaused = AtomicBoolean(false)
+    private val wifiHeldWhileActive = AtomicBoolean(false)
     @Volatile var status: DownloadStatus = if (scheduledAt != null) DownloadStatus.SCHEDULED else DownloadStatus.QUEUED
     @Volatile var errorMessage: String = ""
     @Volatile var totalSize: Long? = null
+    @Volatile var acceptRanges: Boolean = false
     @Volatile var segments: MutableList<SegmentState> = mutableListOf()
     @Volatile var numSegments: Int = numSegmentsRequested
+    /** User-facing Downloads/VDR/... path after MediaStore publish. */
+    @Volatile var publicPath: String? = null
+    /** content:// MediaStore URI used to open the published file. */
+    @Volatile var contentUri: String? = null
     private val speed = SpeedTracker()
     private val lock = Any()
     @Volatile private var worker: Thread? = null
@@ -71,7 +79,8 @@ class DownloadTask(
         url = url,
         displayName = displayName,
         category = category,
-        destPath = destFile.absolutePath,
+        destPath = publicPath ?: destFile.absolutePath,
+        contentUri = contentUri,
         status = status,
         totalBytes = totalSize,
         downloadedBytes = bytesDownloaded(),
@@ -91,10 +100,20 @@ class DownloadTask(
         worker = thread(name = "vdr-$id", isDaemon = true) { runInternal() }
     }
 
+    fun isUserPaused(): Boolean = userPaused.get()
+
     fun pause() {
-        if (status in setOf(DownloadStatus.DOWNLOADING, DownloadStatus.CONNECTING, DownloadStatus.HELD)) {
+        if (status in setOf(
+                DownloadStatus.DOWNLOADING,
+                DownloadStatus.CONNECTING,
+                DownloadStatus.HELD,
+                DownloadStatus.WIFI_HOLD,
+                DownloadStatus.QUEUED,
+            )
+        ) {
             userPaused.set(true)
             running.set(false)
+            wifiHeldWhileActive.set(false)
             setStatus(DownloadStatus.PAUSED)
             persist()
         }
@@ -109,6 +128,43 @@ class DownloadTask(
         }
     }
 
+    fun holdForWifi() {
+        if (userPaused.get()) return
+        if (status in setOf(
+                DownloadStatus.COMPLETED,
+                DownloadStatus.ERROR,
+                DownloadStatus.CANCELLED,
+                DownloadStatus.PAUSED,
+                DownloadStatus.WIFI_HOLD,
+                DownloadStatus.SCHEDULED,
+            )
+        ) return
+        wifiHeldWhileActive.set(status in setOf(DownloadStatus.DOWNLOADING, DownloadStatus.CONNECTING, DownloadStatus.HELD))
+        if (wifiHeldWhileActive.get()) running.set(false)
+        setStatus(DownloadStatus.WIFI_HOLD)
+        persist()
+    }
+
+    fun releaseFromWifi() {
+        if (status != DownloadStatus.WIFI_HOLD || userPaused.get()) return
+        if (wifiHeldWhileActive.getAndSet(false) && worker?.isAlive == true) {
+            resumeInternal()
+        } else {
+            setStatus(DownloadStatus.QUEUED)
+        }
+    }
+
+    fun convertWifiHoldToFocusHold() {
+        if (status != DownloadStatus.WIFI_HOLD || userPaused.get()) return
+        if (wifiHeldWhileActive.getAndSet(false) || worker?.isAlive == true) {
+            running.set(false)
+            setStatus(DownloadStatus.HELD)
+            persist()
+        } else {
+            setStatus(DownloadStatus.QUEUED)
+        }
+    }
+
     fun releaseFromFocus() {
         if (status != DownloadStatus.HELD || userPaused.get()) return
         resumeInternal()
@@ -120,10 +176,24 @@ class DownloadTask(
                 userPaused.set(false)
                 resumeInternal()
             }
+            DownloadStatus.WIFI_HOLD -> {
+                userPaused.set(false)
+                wifiHeldWhileActive.set(false)
+                resumeInternal()
+            }
             DownloadStatus.HELD -> releaseFromFocus()
             DownloadStatus.ERROR -> start()
             else -> {}
         }
+    }
+
+    fun waitForWifiFromPause() {
+        if (status != DownloadStatus.PAUSED) return
+        userPaused.set(false)
+        wifiHeldWhileActive.set(worker?.isAlive == true)
+        if (wifiHeldWhileActive.get()) running.set(false)
+        setStatus(DownloadStatus.WIFI_HOLD)
+        persist()
     }
 
     fun isCancelled(): Boolean = cancelled.get()
@@ -152,13 +222,21 @@ class DownloadTask(
     }
 
     private fun persist() {
-        saveState(stateFile, url, totalSize, synchronized(lock) { segments.toList() })
+        try {
+            saveState(stateFile, url, totalSize, synchronized(lock) { segments.toList() })
+        } catch (_: Exception) {
+            // Resume sidecar is best-effort; never fail the transfer because of it.
+        }
     }
 
     private fun runInternal() {
         try {
             cancelled.set(false)
             running.set(true)
+            DirectUrl.rejectionMessage(url)?.let { msg ->
+                setStatus(DownloadStatus.ERROR, msg)
+                return
+            }
             setStatus(DownloadStatus.CONNECTING)
 
             val loaded = loadState(stateFile)
@@ -189,19 +267,31 @@ class DownloadTask(
                 if (seg.isComplete()) null
                 else thread(name = "vdr-$id-s${seg.index}", isDaemon = true) { downloadSegment(seg) }
             }
+            val stopMonitor = AtomicBoolean(false)
+            val monitor = thread(name = "vdr-$id-progress", isDaemon = true) {
+                while (!stopMonitor.get()) {
+                    Thread.sleep(400)
+                    if (status == DownloadStatus.DOWNLOADING) {
+                        persist()
+                        onUpdate(this)
+                    }
+                }
+            }
             threads.forEach { it.join() }
+            stopMonitor.set(true)
+            monitor.join(500)
 
             if (cancelled.get()) {
                 setStatus(DownloadStatus.CANCELLED)
                 stateFile.delete()
                 return
             }
-            if (status in setOf(DownloadStatus.PAUSED, DownloadStatus.HELD)) {
+            if (status in setOf(DownloadStatus.PAUSED, DownloadStatus.HELD, DownloadStatus.WIFI_HOLD)) {
                 persist()
                 return
             }
             val complete = segments.all { it.isComplete() } ||
-                (totalSize == null && status != DownloadStatus.ERROR)
+                (segments.any { it.end == -1L } && status != DownloadStatus.ERROR)
             if (complete) {
                 setStatus(DownloadStatus.COMPLETED)
                 stateFile.delete()
@@ -223,29 +313,41 @@ class DownloadTask(
         try {
             val head = Request.Builder().url(url).head().build()
             client.newCall(head).execute().use { resp ->
-                val cl = resp.header("Content-Length")?.toLongOrNull()
-                totalSize = cl
-                val accept = resp.header("Accept-Ranges").orEmpty().equals("bytes", ignoreCase = true)
-                if (totalSize != null && accept) return
+                if (DirectUrl.isHtmlContentType(resp.header("Content-Type"))) {
+                    throw IllegalStateException(DirectUrl.HTML_ERROR)
+                }
+                totalSize = resp.header("Content-Length")?.toLongOrNull()
+                acceptRanges = resp.header("Accept-Ranges").orEmpty().equals("bytes", ignoreCase = true)
             }
+        } catch (e: IllegalStateException) {
+            throw e
         } catch (_: Exception) {
-            // HEAD is optional; range GET below is the source of truth.
+            // Some servers reject HEAD; the range GET below is the fallback.
         }
+        if (totalSize != null && totalSize!! > 0) return
         val get = Request.Builder().url(url).get().header("Range", "bytes=0-0").build()
         client.newCall(get).execute().use { resp ->
-            resp.header("Content-Range")?.let { range ->
-                val total = range.substringAfter('/').toLongOrNull()
-                if (total != null && total > 0) totalSize = total
+            if (DirectUrl.isHtmlContentType(resp.header("Content-Type"))) {
+                throw IllegalStateException(DirectUrl.HTML_ERROR)
             }
-            if (totalSize == null) {
-                totalSize = resp.header("Content-Length")?.toLongOrNull()
+            if (resp.code == 206) {
+                acceptRanges = true
+                resp.header("Content-Range")?.substringAfter('/')?.toLongOrNull()?.let {
+                    if (it > 0) totalSize = it
+                }
+            } else {
+                if (totalSize == null) {
+                    totalSize = resp.header("Content-Length")?.toLongOrNull()
+                }
             }
+            // Drain at most one byte so a 206 body is consumed; abort a mistaken 200.
+            resp.body?.byteStream()?.read()
         }
     }
 
     private fun initSegments() {
         val size = totalSize
-        val ranges = size != null && size > 0
+        val ranges = acceptRanges && size != null && size > 0
         if (!ranges) {
             segments = mutableListOf(SegmentState(0, 0, -1))
             numSegments = 1

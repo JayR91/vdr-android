@@ -9,19 +9,29 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.os.IBinder
 import android.os.PowerManager
+import android.content.pm.ServiceInfo
+import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import com.jayr91.vdr.MainActivity
 import com.jayr91.vdr.R
 import com.jayr91.vdr.data.DownloadEntity
 import com.jayr91.vdr.data.VdrDatabase
+import com.jayr91.vdr.data.VdrSettings
+import com.jayr91.vdr.engine.DirectUrl
 import com.jayr91.vdr.engine.DownloadStatus
+import com.jayr91.vdr.engine.DownloadTask
 import com.jayr91.vdr.engine.FocusGuard
 import com.jayr91.vdr.engine.Organizer
 import com.jayr91.vdr.engine.QueueManager
 import com.jayr91.vdr.engine.TaskSnapshot
+import com.jayr91.vdr.storage.PublicStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,42 +47,84 @@ class DownloadService : Service() {
     private lateinit var db: VdrDatabase
     private var appForeground = true
     private var focusEnabled = false
+    private val createdAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onCreate() {
         super.onCreate()
         instance = this
         db = VdrDatabase.get(this)
         createChannel()
-        startForeground(NOTIF_ID, notification("VDR is ready"))
+        ServiceCompat.startForeground(
+            this,
+            NOTIF_ID,
+            notification("VDR is ready"),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+        )
         queue.onUpdate = { task ->
+            publishIfCompleted(task)
             persist(task.snapshot())
             _downloads.value = queue.snapshot()
             updateNotification()
         }
-        registerReceiver(powerReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        refreshFocus()
+        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(powerReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(powerReceiver, filter)
+        }
+        registerNetworkCallback()
+        scope.launch {
+            val prefs = VdrSettings.read(this@DownloadService)
+            focusEnabled = prefs.focusGuard
+            queue.setSpeedLimit(if (prefs.speedKb <= 0) null else prefs.speedKb * 1024L)
+            queue.setWifiOnly(prefs.wifiOnly)
+            queue.setUnmetered(isUnmeteredNetwork())
+            restoreFromDisk()
+            refreshFocus()
+            queue.refreshHolds()
+            _downloads.value = queue.snapshot()
+            updateNotification()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_ADD -> {
-                val url = intent.getStringExtra(EXTRA_URL)?.trim().orEmpty()
-                if (url.startsWith("http://") || url.startsWith("https://")) {
-                    addUrl(url, intent.getIntExtra(EXTRA_SEGMENTS, 8), intent.getLongExtra(EXTRA_SCHEDULE, -1L).takeIf { it > 0 })
+                val raw = intent.getStringExtra(EXTRA_URL).orEmpty()
+                val segments = intent.getIntExtra(EXTRA_SEGMENTS, 8)
+                val schedule = intent.getLongExtra(EXTRA_SCHEDULE, -1L).takeIf { it > 0 }
+                val urls = DirectUrl.extractHttpUrls(raw).ifEmpty {
+                    listOf(raw.trim()).filter { it.startsWith("http://") || it.startsWith("https://") }
                 }
+                urls.forEach { addUrl(it, segments, schedule) }
             }
             ACTION_PAUSE -> intent.getStringExtra(EXTRA_ID)?.let { queue.pause(it) }
             ACTION_RESUME -> intent.getStringExtra(EXTRA_ID)?.let { queue.resume(it) }
-            ACTION_CANCEL -> intent.getStringExtra(EXTRA_ID)?.let { queue.cancel(it) }
-            ACTION_REMOVE -> intent.getStringExtra(EXTRA_ID)?.let { queue.remove(it) }
+            ACTION_CANCEL -> intent.getStringExtra(EXTRA_ID)?.let { id ->
+                queue.remove(id)
+                scope.launch { db.downloads().delete(id) }
+            }
+            ACTION_REMOVE -> intent.getStringExtra(EXTRA_ID)?.let { id ->
+                queue.remove(id)
+                scope.launch { db.downloads().delete(id) }
+            }
             ACTION_SPEED -> {
                 val kb = intent.getIntExtra(EXTRA_SPEED_KB, 0)
                 queue.setSpeedLimit(if (kb <= 0) null else kb * 1024L)
+                scope.launch { VdrSettings.setSpeedKb(this@DownloadService, kb) }
                 refreshFocus()
             }
             ACTION_FOCUS -> {
                 focusEnabled = intent.getBooleanExtra(EXTRA_FOCUS, false)
+                scope.launch { VdrSettings.setFocusGuard(this@DownloadService, focusEnabled) }
                 refreshFocus()
+            }
+            ACTION_WIFI_ONLY -> {
+                val enabled = intent.getBooleanExtra(EXTRA_WIFI_ONLY, false)
+                queue.setWifiOnly(enabled)
+                scope.launch { VdrSettings.setWifiOnly(this@DownloadService, enabled) }
             }
             ACTION_FOREGROUND -> {
                 appForeground = intent.getBooleanExtra(EXTRA_FOCUS, true)
@@ -81,10 +133,12 @@ class DownloadService : Service() {
         }
         _downloads.value = queue.snapshot()
         _focusDetail.value = FocusGuard.detail(queue.focusPolicy)
+        updateNotification()
         return START_STICKY
     }
 
     private fun addUrl(url: String, segments: Int, scheduledAt: Long?) {
+        val pageError = DirectUrl.rejectionMessage(url)
         val name = Organizer.filenameFromUrl(url)
         val category = Organizer.categoryFor(name)
         val dest = File(File(getExternalFilesDir(null), category), name).let { original ->
@@ -111,10 +165,69 @@ class DownloadService : Service() {
             numSegments = segments,
             scheduledAt = scheduledAt,
             id = id,
+            autoStart = pageError == null,
+            initialStatus = if (pageError != null) DownloadStatus.ERROR else null,
+            initialError = pageError,
         )
     }
 
+    private fun publishIfCompleted(task: DownloadTask) {
+        if (task.status != DownloadStatus.COMPLETED) return
+        if (!task.contentUri.isNullOrBlank()) return
+        if (!task.destFile.exists()) return
+        try {
+            val published = PublicStore.publish(this, task.destFile, task.displayName, task.category)
+            task.publicPath = published.displayPath
+            task.contentUri = published.contentUri
+            task.destFile.delete()
+            task.stateFile.delete()
+        } catch (e: Exception) {
+            if (task.errorMessage.isBlank()) {
+                task.errorMessage = "Downloaded, but could not save to Downloads/VDR: ${e.message}"
+            }
+        }
+    }
+
+    private suspend fun restoreFromDisk() {
+        db.downloads().all().forEach { row ->
+            if (queue.find(row.id) != null) return@forEach
+            createdAt[row.id] = row.createdAt
+            val pageError = DirectUrl.rejectionMessage(row.url)
+            val status = DownloadStatus.entries.find { it.label == row.status } ?: DownloadStatus.QUEUED
+            val autoStart = pageError == null && (
+                status == DownloadStatus.QUEUED ||
+                    status == DownloadStatus.DOWNLOADING ||
+                    status == DownloadStatus.CONNECTING
+                )
+            queue.add(
+                url = row.url,
+                destFile = File(row.destPath),
+                displayName = row.displayName,
+                category = row.category,
+                numSegments = row.numSegments,
+                scheduledAt = row.scheduledAt,
+                id = row.id,
+                autoStart = autoStart,
+                initialStatus = when {
+                    pageError != null -> DownloadStatus.ERROR
+                    autoStart -> DownloadStatus.QUEUED
+                    else -> status
+                },
+                initialError = pageError ?: row.error,
+                publishedPath = row.contentUri?.let { row.destPath },
+                contentUri = row.contentUri,
+            )
+        }
+        _downloads.value = queue.snapshot()
+    }
+
     private fun persist(snap: TaskSnapshot) {
+        if (snap.status == DownloadStatus.CANCELLED) {
+            createdAt.remove(snap.id)
+            scope.launch { db.downloads().delete(snap.id) }
+            return
+        }
+        val firstSeen = createdAt.getOrPut(snap.id) { System.currentTimeMillis() }
         scope.launch {
             db.downloads().upsert(
                 DownloadEntity(
@@ -123,12 +236,13 @@ class DownloadService : Service() {
                     displayName = snap.displayName,
                     category = snap.category,
                     destPath = snap.destPath,
+                    contentUri = snap.contentUri,
                     status = snap.status.label,
                     totalBytes = snap.totalBytes,
                     downloadedBytes = snap.downloadedBytes,
                     error = snap.error,
                     numSegments = snap.numSegments,
-                    createdAt = System.currentTimeMillis(),
+                    createdAt = firstSeen,
                     scheduledAt = snap.scheduledAt,
                 )
             )
@@ -145,6 +259,35 @@ class DownloadService : Service() {
         queue.applyFocusPolicy(policy)
         _focusDetail.value = FocusGuard.detail(policy)
         _downloads.value = queue.snapshot()
+        updateNotification()
+    }
+
+    private fun isUnmeteredNetwork(): Boolean {
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return false
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return false
+        return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+    }
+
+    private fun refreshWifi() {
+        queue.setUnmetered(isUnmeteredNetwork())
+        _downloads.value = queue.snapshot()
+        updateNotification()
+    }
+
+    private fun registerNetworkCallback() {
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) = refreshWifi()
+            override fun onLost(network: Network) = refreshWifi()
+            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) =
+                refreshWifi()
+        }
+        networkCallback = callback
+        runCatching { cm.registerDefaultNetworkCallback(callback) }
     }
 
     private val powerReceiver = object : BroadcastReceiver() {
@@ -159,9 +302,13 @@ class DownloadService : Service() {
     }
 
     private fun updateNotification() {
-        val active = queue.snapshot().filter { it.status == DownloadStatus.DOWNLOADING }
+        val snap = queue.snapshot()
+        val active = snap.filter {
+            it.status in setOf(DownloadStatus.DOWNLOADING, DownloadStatus.CONNECTING)
+        }
         val text = when {
-            active.isEmpty() -> "Idle — ${queue.snapshot().size} in queue"
+            queue.wifiBlocked() -> "Waiting for Wi‑Fi — ${snap.size} in queue"
+            active.isEmpty() -> "Idle — ${snap.size} in queue"
             active.size == 1 -> {
                 val t = active.first()
                 val pct = if (t.totalBytes != null && t.totalBytes > 0)
@@ -171,27 +318,78 @@ class DownloadService : Service() {
             else -> "${active.size} downloads running"
         }
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(NOTIF_ID, notification(text))
+        nm.notify(NOTIF_ID, notification(text, notificationTarget(snap)))
     }
 
-    private fun notification(text: String): Notification {
+    private fun notificationTarget(snap: List<TaskSnapshot>): TaskSnapshot? {
+        val order = listOf(
+            DownloadStatus.DOWNLOADING,
+            DownloadStatus.CONNECTING,
+            DownloadStatus.WIFI_HOLD,
+            DownloadStatus.HELD,
+            DownloadStatus.PAUSED,
+        )
+        return order.firstNotNullOfOrNull { status -> snap.firstOrNull { it.status == status } }
+    }
+
+    private fun notification(text: String, target: TaskSnapshot? = null): Notification {
         val launch = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("VDR")
             .setContentText(text)
             .setContentIntent(launch)
             .setOngoing(true)
-            .build()
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+        if (target != null) {
+            val running = target.status in setOf(DownloadStatus.DOWNLOADING, DownloadStatus.CONNECTING)
+            if (running) {
+                builder.addAction(
+                    android.R.drawable.ic_media_pause,
+                    "Pause",
+                    servicePending(ACTION_PAUSE, target.id, 21),
+                )
+            } else {
+                builder.addAction(
+                    android.R.drawable.ic_media_play,
+                    "Resume",
+                    servicePending(ACTION_RESUME, target.id, 22),
+                )
+            }
+            builder.addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "Cancel",
+                servicePending(ACTION_CANCEL, target.id, 23),
+            )
+        }
+        return builder.build()
+    }
+
+    private fun servicePending(action: String, id: String, requestCode: Int): PendingIntent {
+        val intent = Intent(this, DownloadService::class.java)
+            .setAction(action)
+            .putExtra(EXTRA_ID, id)
+        return PendingIntent.getForegroundService(
+            this,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         unregisterReceiver(powerReceiver)
+        networkCallback?.let { cb ->
+            runCatching {
+                getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(cb)
+            }
+        }
         instance = null
         super.onDestroy()
     }
@@ -206,6 +404,7 @@ class DownloadService : Service() {
         const val ACTION_REMOVE = "com.jayr91.vdr.REMOVE"
         const val ACTION_SPEED = "com.jayr91.vdr.SPEED"
         const val ACTION_FOCUS = "com.jayr91.vdr.FOCUS"
+        const val ACTION_WIFI_ONLY = "com.jayr91.vdr.WIFI_ONLY"
         const val ACTION_FOREGROUND = "com.jayr91.vdr.FOREGROUND"
         const val EXTRA_URL = "url"
         const val EXTRA_ID = "id"
@@ -213,6 +412,7 @@ class DownloadService : Service() {
         const val EXTRA_SCHEDULE = "schedule"
         const val EXTRA_SPEED_KB = "speed_kb"
         const val EXTRA_FOCUS = "focus"
+        const val EXTRA_WIFI_ONLY = "wifi_only"
 
         private val _downloads = MutableStateFlow<List<TaskSnapshot>>(emptyList())
         val downloads = _downloads.asStateFlow()

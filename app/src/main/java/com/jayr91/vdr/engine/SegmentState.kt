@@ -42,17 +42,21 @@ fun JSONArray.toSegments(): List<SegmentState> {
 }
 
 fun saveState(file: File, url: String, totalSize: Long?, segments: List<SegmentState>) {
-    val tmp = File(file.absolutePath + ".tmp")
-    tmp.writeText(
-        JSONObject()
-            .put("url", url)
-            .put("total_size", totalSize ?: JSONObject.NULL)
-            .put("segments", segments.toJson())
-            .toString()
-    )
-    if (!tmp.renameTo(file)) {
-        file.writeText(tmp.readText())
-        tmp.delete()
+    try {
+        val tmp = File(file.absolutePath + ".tmp")
+        tmp.writeText(
+            JSONObject()
+                .put("url", url)
+                .put("total_size", totalSize ?: JSONObject.NULL)
+                .put("segments", segments.toJson())
+                .toString()
+        )
+        if (!tmp.renameTo(file)) {
+            file.writeText(tmp.readText())
+            tmp.delete()
+        }
+    } catch (_: Exception) {
+        // Ignore unwritable sidecar files.
     }
 }
 

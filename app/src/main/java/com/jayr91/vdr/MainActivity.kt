@@ -11,12 +11,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.jayr91.vdr.engine.DirectUrl
 import com.jayr91.vdr.service.DownloadService
 import com.jayr91.vdr.ui.VdrApp
 import com.jayr91.vdr.ui.theme.VdrTheme
 
 class MainActivity : ComponentActivity() {
     private val notifyPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
+    private val storagePermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
 
@@ -37,6 +42,9 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) {
             notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+        if (Build.VERSION.SDK_INT < 29) {
+            storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
         handleShare(intent)
         setContent {
             VdrTheme {
@@ -56,9 +64,11 @@ class MainActivity : ComponentActivity() {
             Intent.ACTION_VIEW -> intent.dataString
             else -> null
         } ?: return
-        val url = Regex("https?://\\S+").find(text)?.value ?: return
-        DownloadService.send(this, DownloadService.ACTION_ADD) {
-            putExtra(DownloadService.EXTRA_URL, url)
+        val urls = DirectUrl.extractHttpUrls(text)
+        urls.forEach { url ->
+            DownloadService.send(this, DownloadService.ACTION_ADD) {
+                putExtra(DownloadService.EXTRA_URL, url)
+            }
         }
     }
 

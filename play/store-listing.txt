@@ -1,15 +1,33 @@
-VDR — Video Downloader for Android
+App name (30 chars max): VDR
 
-VDR is a resumable download manager. It splits HTTP files into parallel
-byte-range segments, pauses and resumes mid-transfer, retries failed
-segments, and can cap bandwidth so the rest of the phone stays usable.
+Short description (80 chars max):
+Direct HTTP file downloads with resume, clipboard paste, and Wi-Fi only.
 
-Focus Guard pauses downloads on battery or Battery Saver, and slows
-transfers to 256 KB/s while you are using the app. Completed files are
-sorted into Videos, Documents, Zips, Audio, Images, or Other.
+Full description:
 
-Share a link from your browser into VDR, or paste a direct https file URL.
+VDR 1.1 is a free download manager for Android. Paste a direct HTTP or HTTPS file URL and VDR fetches it in parallel byte-range segments, with pause, resume, and retries.
 
-VDR is free software under the GNU GPL v3, ported from the desktop VDR
-project. It downloads direct files only — it does not extract streams from
-YouTube or other video sites.
+What it does
+• Downloads direct files only (for example .mp4, .zip, .pdf, .apk). Share a link from your browser, paste from the clipboard, or type a URL.
+• Optional Wi-Fi only — downloads wait until you are on unmetered Wi-Fi.
+• Finished files are saved under Downloads/VDR, grouped into Videos, Documents, Zips, Audio, Images, or Other so Files and Gallery can open them.
+• Pause and resume, including after the app is closed (a small sidecar keeps progress).
+• Optional speed cap so the rest of the phone stays usable.
+• Focus Guard can pause on battery or Battery Saver, and slow transfers while you use the app.
+• Progress shows in a notification.
+
+What it does not do
+VDR does not extract streams from YouTube, Instagram, TikTok, or other watch pages. Those links are rejected. It is not Internet Download Manager and does not claim IDM compatibility.
+
+Privacy
+No account, no ads, no analytics. Network traffic goes only to the hosts of the URLs you start. See the in-listing privacy policy.
+
+VDR is free software under the GNU GPL v3, ported from the desktop VDR project.
+
+Category: Tools
+Tags: download manager, resumable download, file downloader
+Default language: English
+Price: Free
+Content rating: intended for everyone (utility; no user-generated content)
+Data safety: no account; no collected data shared; files you download stay on the device
+Privacy policy: host play/privacy-policy.html on HTTPS (GitHub Pages recommended)

@@ -13,7 +13,13 @@ class QueueManager(
         private set
     var focusPolicy: String = FocusGuard.POLICY_OFF
         private set
+    var wifiOnly: Boolean = false
+        private set
+    var unmetered: Boolean = true
+        private set
     var onUpdate: ((DownloadTask) -> Unit)? = null
+
+    fun wifiBlocked(): Boolean = wifiOnly && !unmetered
 
     fun snapshot(): List<TaskSnapshot> = synchronized(lock) { tasks.map { it.snapshot() } }
 
@@ -23,18 +29,46 @@ class QueueManager(
     }
 
     fun applyFocusPolicy(policy: String) {
-        val previous = focusPolicy
         focusPolicy = policy
         applyBucket()
+        refreshHolds()
+    }
+
+    fun setWifiOnly(enabled: Boolean) {
+        wifiOnly = enabled
+        refreshHolds()
+    }
+
+    fun setUnmetered(value: Boolean) {
+        if (unmetered == value) return
+        unmetered = value
+        refreshHolds()
+    }
+
+    fun refreshHolds() {
         val copy = synchronized(lock) { tasks.toList() }
-        if (policy == FocusGuard.POLICY_HOLD) {
-            copy.forEach { it.holdForFocus() }
-            return
+        copy.forEach { t ->
+            if (t.isUserPaused()) return@forEach
+            if (t.status in setOf(
+                    DownloadStatus.COMPLETED,
+                    DownloadStatus.ERROR,
+                    DownloadStatus.CANCELLED,
+                    DownloadStatus.SCHEDULED,
+                )
+            ) return@forEach
+            when {
+                wifiBlocked() -> t.holdForWifi()
+                focusPolicy == FocusGuard.POLICY_HOLD -> {
+                    if (t.status == DownloadStatus.WIFI_HOLD) t.convertWifiHoldToFocusHold()
+                    t.holdForFocus()
+                }
+                else -> {
+                    if (t.status == DownloadStatus.WIFI_HOLD) t.releaseFromWifi()
+                    if (t.status == DownloadStatus.HELD) t.releaseFromFocus()
+                }
+            }
         }
-        if (previous == FocusGuard.POLICY_HOLD) {
-            copy.forEach { it.releaseFromFocus() }
-            maybeStart()
-        }
+        maybeStart()
     }
 
     private fun applyBucket() {
@@ -51,6 +85,11 @@ class QueueManager(
         numSegments: Int = 8,
         scheduledAt: Long? = null,
         id: String = UUID.randomUUID().toString(),
+        autoStart: Boolean = true,
+        initialStatus: DownloadStatus? = null,
+        initialError: String? = null,
+        publishedPath: String? = null,
+        contentUri: String? = null,
     ): DownloadTask {
         val task = DownloadTask(
             id = id,
@@ -68,8 +107,13 @@ class QueueManager(
                 }
             },
         )
+        if (initialStatus != null) task.status = initialStatus
+        if (!initialError.isNullOrBlank()) task.errorMessage = initialError
+        task.publicPath = publishedPath
+        task.contentUri = contentUri
         synchronized(lock) { tasks.add(task) }
         onUpdate?.invoke(task)
+        if (!autoStart) return task
         if (scheduledAt != null && scheduledAt > System.currentTimeMillis()) {
             Thread {
                 while (!task.isCancelled() && System.currentTimeMillis() < scheduledAt) {
@@ -77,17 +121,26 @@ class QueueManager(
                 }
                 if (!task.isCancelled()) {
                     task.status = DownloadStatus.QUEUED
-                    maybeStart()
+                    refreshHolds()
                 }
             }.start()
         } else {
-            maybeStart()
+            refreshHolds()
         }
         return task
     }
 
     fun pause(id: String) = find(id)?.pause()
-    fun resume(id: String) = find(id)?.resume()
+    fun resume(id: String) {
+        val t = find(id) ?: return
+        if (wifiBlocked()) {
+            if (t.status == DownloadStatus.PAUSED) t.waitForWifiFromPause()
+            else t.holdForWifi()
+            return
+        }
+        t.resume()
+        maybeStart()
+    }
     fun cancel(id: String) {
         find(id)?.cancel()
         maybeStart()
@@ -104,6 +157,7 @@ class QueueManager(
 
     fun maybeStart() {
         if (focusPolicy == FocusGuard.POLICY_HOLD) return
+        if (wifiBlocked()) return
         val toStart = synchronized(lock) {
             val active = tasks.count {
                 it.status in setOf(DownloadStatus.CONNECTING, DownloadStatus.DOWNLOADING)

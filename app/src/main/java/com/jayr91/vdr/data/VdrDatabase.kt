@@ -19,6 +19,7 @@ data class DownloadEntity(
     val displayName: String,
     val category: String,
     val destPath: String,
+    val contentUri: String? = null,
     val status: String,
     val totalBytes: Long?,
     val downloadedBytes: Long,
@@ -43,15 +44,24 @@ interface DownloadDao {
     suspend fun all(): List<DownloadEntity>
 }
 
-@Database(entities = [DownloadEntity::class], version = 1, exportSchema = false)
+@Database(entities = [DownloadEntity::class], version = 2, exportSchema = false)
 abstract class VdrDatabase : RoomDatabase() {
     abstract fun downloads(): DownloadDao
 
     companion object {
         @Volatile private var instance: VdrDatabase? = null
+
+        private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE downloads ADD COLUMN contentUri TEXT")
+            }
+        }
+
         fun get(context: Context): VdrDatabase =
             instance ?: synchronized(this) {
-                instance ?: Room.databaseBuilder(context, VdrDatabase::class.java, "vdr.db").build()
+                instance ?: Room.databaseBuilder(context, VdrDatabase::class.java, "vdr.db")
+                    .addMigrations(MIGRATION_1_2)
+                    .build()
                     .also { instance = it }
             }
     }
