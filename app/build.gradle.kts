@@ -13,9 +13,13 @@ android {
         applicationId = "com.jayr91.vdr"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.1.0"
+        versionCode = 11
+        versionName = "1.5.4"
         vectorDrawables.useSupportLibrary = true
+        // No abiFilters: with FFmpeg gone the app ships no native libraries at
+        // all, so every ABI is served by the same bytecode. Filtering here used
+        // to shrink the FFmpeg kit; keeping it now would only drop x86_64
+        // emulator and Chromebook support for nothing.
     }
 
     val keystoreProps = rootProject.file("keystore.properties")
@@ -79,6 +83,10 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
+    // Remuxing (mpegts→mp4, stream copy) uses the platform's own
+    // MediaExtractor/MediaMuxer — see engine/Remuxer.kt. Deliberately no FFmpeg
+    // dependency: dropping it saved ~15 MiB of native libs and the LGPL
+    // relinking obligation those libraries carry.
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.json:json:20240303")
