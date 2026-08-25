@@ -8,7 +8,8 @@ Full description:
 VDR 1.1 is a free download manager for Android. Paste a direct HTTP or HTTPS file URL and VDR fetches it in parallel byte-range segments, with pause, resume, and retries.
 
 What it does
-• Downloads direct files only (for example .mp4, .zip, .pdf, .apk). Share a link from your browser, paste from the clipboard, or type a URL.
+• Direct files only — for example .mp4, .zip, .pdf, .apk. It will not fetch YouTube, Instagram, TikTok, or other watch/share pages; those links are rejected.
+• Add a URL by typing it, pasting from the clipboard, or sharing text from your browser.
 • Optional Wi-Fi only — downloads wait until you are on unmetered Wi-Fi.
 • Finished files are saved under Downloads/VDR, grouped into Videos, Documents, Zips, Audio, Images, or Other so Files and Gallery can open them.
 • Pause and resume, including after the app is closed (a small sidecar keeps progress).
@@ -17,10 +18,10 @@ What it does
 • Progress shows in a notification.
 
 What it does not do
-VDR does not extract streams from YouTube, Instagram, TikTok, or other watch pages. Those links are rejected. It is not Internet Download Manager and does not claim IDM compatibility.
+VDR does not extract streams from YouTube or similar sites. It is not Internet Download Manager and does not claim IDM compatibility.
 
 Privacy
-No account, no ads, no analytics. Network traffic goes only to the hosts of the URLs you start. See the in-listing privacy policy.
+No account, no ads, no analytics. Clipboard text is read on the device only to offer a URL. Network traffic goes only to the hosts of the URLs you start. Files stay in Downloads/VDR. See the in-listing privacy policy.
 
 VDR is free software under the GNU GPL v3, ported from the desktop VDR project.
 

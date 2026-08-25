@@ -20,11 +20,25 @@ Do not commit the `.jks` or `keystore.properties`. Back them up offline.
 Build the bundle:
 
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew bundleRelease
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ./gradlew bundleRelease
 ```
 
 Upload `app/build/outputs/bundle/release/app-release.aab` to **Internal testing**
 first, then promote when the listing, Data safety, and content rating are complete.
+
+## Play Console checklist
+
+Do these in order. Do not upload a production release until Internal testing
+installs cleanly.
+
+1. **Create the app** in [Play Console](https://play.google.com/console) → Create app. Package name must be `com.jayr91.vdr`. App name: **VDR**. Default language: English. App or game: App. Free. Declarations: this is not a news app, not a government app.
+2. **Store listing** — copy from `store-listing.txt`. Short description: direct HTTP files, resume, clipboard paste, Wi-Fi only. Full description must say VDR downloads **direct files only**, saves to **Downloads/VDR**, and does **not** download YouTube/watch pages. Upload `play/icon-512.png`, a 1024×500 feature graphic, plus phone (and 7-inch tablet if you have one) screenshots of the download list.
+3. **Privacy policy URL** — Play needs a public HTTPS page. Enable GitHub Pages on this repo (source: `/play`) and use `https://jayr91.github.io/vdr-android/privacy-policy.html`. Until Pages is live, host `play/privacy-policy.html` on any HTTPS site you control. Do not use a raw GitHub URL.
+4. **Data safety** — Data collected: none sent off-device to you. No account, no analytics, no advertising ID. Files stay on the device under Downloads/VDR. Clipboard is read locally to offer a URL and is not uploaded. Notifications: download progress only.
+5. **Content rating** — start the IARC questionnaire. This is a utility; no user-generated content, no violence, no sharing other people’s personal info. Target: Everyone.
+6. **Upload the AAB to Internal testing first** — Testing → Internal testing → Create a new release → upload `app/build/outputs/bundle/release/app-release.aab` (1.1.0 / versionCode 3). Add yourself as a tester, install from the testing link, confirm a direct file downloads to Downloads/VDR and that a YouTube page URL is rejected. Only then promote to Closed / Production.
+
+Countries, ads declaration (no ads), and news/COVID declarations are also required before Production.
 
 ## Store listing
 
