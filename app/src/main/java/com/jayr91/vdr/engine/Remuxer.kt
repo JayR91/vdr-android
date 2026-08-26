@@ -121,9 +121,19 @@ object Remuxer {
                     info.offset = 0
                     info.size = size
                     info.presentationTimeUs = extractor.sampleTime
-                    // Carry the keyframe flag across; without it players cannot
-                    // seek, and the file looks subtly broken despite being whole.
-                    info.flags = extractor.sampleFlags
+                    // Translate rather than assign: these are two different
+                    // flag vocabularies that happen to share numeric values.
+                    // SAMPLE_FLAG_SYNC and BUFFER_FLAG_KEY_FRAME are both 1,
+                    // which is why copying appeared to work -- but
+                    // SAMPLE_FLAG_PARTIAL_FRAME is 4 and BUFFER_FLAG_END_OF_STREAM
+                    // is also 4, so a partial frame would have told the muxer
+                    // the stream had ended and truncated the output there.
+                    // Only the keyframe bit is meaningful to the muxer.
+                    info.flags = if (extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) {
+                        MediaCodec.BUFFER_FLAG_KEY_FRAME
+                    } else {
+                        0
+                    }
                     muxer.writeSampleData(destTrack, buffer, info)
                     wrote = true
                 }

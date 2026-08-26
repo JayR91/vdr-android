@@ -75,6 +75,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.3")
+    // A transitive dependency drags in androidx.fragment 1.1.0, which predates
+    // the ActivityResult APIs that MainActivity registers at construction.
+    // Lint rates that combination Fatal, not cosmetic: the old fragment code
+    // does not participate in the result registry, so the permission callbacks
+    // never fire. Pin a version that has it.
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")

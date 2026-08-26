@@ -125,7 +125,13 @@ object DirectUrl {
     private fun pathOf(url: String): String? {
         val trimmed = url.trim()
         if (trimmed.isEmpty()) return null
-        parseUri(trimmed)?.rawPath?.let { return URLDecoder.decode(it, Charsets.UTF_8) }
+        // The (String, Charset) overload of decode() only exists from API 33.
+        // minSdk here is 26 and core library desugaring is off, so on Android
+        // 8 through 12 that call is a NoSuchMethodError -- and pathOf() runs
+        // for every URL the app looks at, so the crash would have been the
+        // first thing most users saw. The (String, String) overload has been
+        // present since API 1 and behaves identically.
+        parseUri(trimmed)?.rawPath?.let { return URLDecoder.decode(it, "UTF-8") }
         // Lenient fallback when java.net.URI rejects spaces / odd characters.
         val noFrag = trimmed.substringBefore('#')
         val noQuery = noFrag.substringBefore('?')

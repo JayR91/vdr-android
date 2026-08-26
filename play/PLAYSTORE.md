@@ -22,7 +22,7 @@ listing copy, privacy policy, and a signed App Bundle.
 | `vdr_pro` IAP | **SKIP / deferred** | Do not create until BillDesk clears |
 | Freemium code 1.5.8 | **DONE** | Billing + Pro gates in app |
 | Signed AAB 1.5.8 / vc15 | **DONE** | Uploaded to Internal; release published |
-| Review + fixes 1.5.9 | **DONE** | 7 defects fixed, 9 regression tests added; 38 unit tests green |
+| Review + fixes 1.5.9 | **DONE** | 10 defects fixed, 9 regression tests added; 38 unit tests green; lint clean |
 | Signed AAB 1.5.9 / vc16 | **BUILT, NOT UPLOADED** | `play/artifacts/vdr-1.5.9-vc16.aab`; needs `PLAY_JSON` to upload |
 | Store listing | **PARTIAL** | en-US + icon + feature graphic + screenshots; category/contact may still need dashboard steps |
 | Policy forms | **DONE** | Ads, Ad ID, Sign-in, IARC, Target audience, Data safety, Financial, Health saved |
@@ -74,6 +74,30 @@ testing did not surface them.
 7. **`#EXT-X-BYTERANGE` was ignored.** Those entries are slices of one file, so
    the same URL repeats; downloading each whole produced a file several times
    the correct size containing duplicated bytes. Now refused.
+
+**Crashes and corruption caught by lint (`./gradlew :app:lintRelease`)**
+
+8. **`URLDecoder.decode(s, Charsets.UTF_8)` does not exist below API 33.**
+   minSdk is 26 and core library desugaring is off, so on Android 8 through 12
+   that call is a `NoSuchMethodError`. It sits in `DirectUrl.pathOf()`, which
+   runs for every URL the app inspects — so on most of the Android install base
+   the crash would have been the first thing a user saw. The `(String, String)`
+   overload has existed since API 1 and behaves identically.
+9. **`MediaExtractor` sample flags were assigned straight to a
+   `MediaCodec.BufferInfo`.** Two different flag vocabularies that happen to
+   share numeric values: `SAMPLE_FLAG_SYNC` and `BUFFER_FLAG_KEY_FRAME` are
+   both 1, which is why it looked correct — but `SAMPLE_FLAG_PARTIAL_FRAME` is
+   4 and so is `BUFFER_FLAG_END_OF_STREAM`, so a partial frame told the muxer
+   the stream had ended and truncated the remux there. Now translated
+   explicitly.
+10. **`androidx.fragment` resolved to 1.1.0** via a transitive dependency,
+    predating the ActivityResult APIs `MainActivity` registers at construction.
+    Lint rates this Fatal rather than cosmetic: the old fragment code does not
+    join the result registry, so the notification and storage permission
+    callbacks never fire. Pinned to 1.8.5.
+
+Lint now reports zero errors on the release variant (24 warnings, all
+cosmetic: newer-dependency notices and launcher-icon shape).
 
 **Hardening**
 - Page scanning read only the first ~8 KiB of a page. okio's `read(sink, n)`
