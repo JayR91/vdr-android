@@ -2,8 +2,13 @@ package com.jayr91.vdr.engine
 
 object Organizer {
     private val categories = mapOf(
-        "Videos" to setOf(".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".mpg", ".mpeg"),
-        "Documents" to setOf(".pdf", ".doc", ".docx", ".txt", ".rtf", ".xls", ".xlsx", ".ppt", ".pptx", ".csv", ".epub"),
+        "Videos" to setOf(
+            ".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".mpg", ".mpeg", ".ts", ".m4s",
+        ),
+        "Documents" to setOf(
+            ".pdf", ".doc", ".docx", ".txt", ".rtf", ".xls", ".xlsx", ".ppt", ".pptx", ".csv", ".epub",
+        ),
+        "Subtitles" to setOf(".vtt", ".srt", ".ass", ".ssa"),
         "Zips" to setOf(".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".apk", ".dmg"),
         "Audio" to setOf(".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg"),
         "Images" to setOf(".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".svg"),
@@ -22,6 +27,21 @@ object Organizer {
 
     fun filenameFromUrl(url: String): String {
         return safeFilename(url.substringAfterLast('/').ifBlank { "download" })
+    }
+
+    /**
+     * Dest filename for playlist URLs: HLS → provisional .ts, DASH → .mp4.
+     * DownloadTask may rename HLS fMP4 to .mp4 after parsing EXT-X-MAP.
+     */
+    fun outputNameForUrl(url: String): String {
+        val raw = filenameFromUrl(url)
+        return when {
+            DirectUrl.looksLikeHlsUrl(url) ->
+                raw.removeSuffix(".m3u8").removeSuffix(".M3U8").ifBlank { "stream" } + ".ts"
+            DirectUrl.looksLikeDashUrl(url) ->
+                raw.removeSuffix(".mpd").removeSuffix(".MPD").ifBlank { "stream" } + ".mp4"
+            else -> raw
+        }
     }
 
     fun mimeType(filename: String): String {
@@ -46,6 +66,14 @@ object Organizer {
         "m4v" to "video/x-m4v",
         "mpg" to "video/mpeg",
         "mpeg" to "video/mpeg",
+        "ts" to "video/mp2t",
+        "m4s" to "video/iso.segment",
+        "m3u8" to "application/vnd.apple.mpegurl",
+        "mpd" to "application/dash+xml",
+        "vtt" to "text/vtt",
+        "srt" to "application/x-subrip",
+        "ass" to "text/x-ssa",
+        "ssa" to "text/x-ssa",
         "pdf" to "application/pdf",
         "doc" to "application/msword",
         "docx" to "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

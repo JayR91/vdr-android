@@ -12,3 +12,5 @@
 keystore.properties
 *.jks
 *.keystore
+# Merchant-onboarding notes: public repo, personal business details.
+play/BILLDESK-PRIVATE.md

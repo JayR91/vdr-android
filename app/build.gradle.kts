@@ -13,8 +13,8 @@ android {
         applicationId = "com.jayr91.vdr"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.5.5"
+        versionCode = 16
+        versionName = "1.5.9"
         vectorDrawables.useSupportLibrary = true
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // No abiFilters: with FFmpeg gone the app ships no native libraries at
@@ -60,7 +60,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
@@ -81,6 +84,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")

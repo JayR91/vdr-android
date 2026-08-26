@@ -12,6 +12,16 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!-- Package visibility so we can detect VLC and launch ACTION_VIEW into it. -->
+    <queries>
+        <package android:name="org.videolan.vlc" />
+        <package android:name="org.videolan.vlc.debug" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

@@ -3,8 +3,142 @@
 Play Console requires your Google account. This repo can only prepare the
 listing copy, privacy policy, and a signed App Bundle.
 
-**App:** `com.jayr91.vdr` · **Version:** 1.1.0 (`versionCode` 3)  
-**Category:** Tools · **Price:** Free · **Default language:** English
+**App:** `com.jayr91.vdr` · **Version:** 1.5.9 (`versionCode` 16)  
+**Category:** Tools · **Price:** Free (optional one-time Pro IAP) · **Default language:** English (United States)  
+**Play Console app:** developer `5667084395209045347` · app `4975586487357388428`  
+**Privacy policy (live):** https://jayr91.github.io/vdr-android/privacy-policy.html  
+**Signed AAB:** `app/build/outputs/bundle/release/app-release.aab` (~12 MiB) · also `play/ready/app-release-1.5.8.aab`
+
+## Status dashboard (2026-08-26 ~20:50 IST)
+
+**Latest:** **16 (1.5.9)** built and signed locally, **not yet uploaded**. Supersedes Internal **15 (1.5.8)**, which is rolled out with track **Active** and email list `Internal testers` (`jayradbus@gmail.com`). BillDesk / `vdr_pro` / IAP **still deferred**. Chrome: keep **1 Play + 1 BillDesk** max.
+
+**1.5.9 is a correctness release** — it fixes bugs in 1.5.8 that produced wrong results rather than errors. See "What changed in 1.5.9" below.
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| Payments profile | **DONE** | Exists (Jayendar S / INR / India) |
+| BillDesk PA-CB | **DEFERRED** | Video KYC human-only (agents Mon–Sat 09:30–18:00 IST) — skip for now |
+| `vdr_pro` IAP | **SKIP / deferred** | Do not create until BillDesk clears |
+| Freemium code 1.5.8 | **DONE** | Billing + Pro gates in app |
+| Signed AAB 1.5.8 / vc15 | **DONE** | Uploaded to Internal; release published |
+| Review + fixes 1.5.9 | **DONE** | 7 defects fixed, 9 regression tests added; 38 unit tests green |
+| Signed AAB 1.5.9 / vc16 | **BUILT, NOT UPLOADED** | `play/artifacts/vdr-1.5.9-vc16.aab`; needs `PLAY_JSON` to upload |
+| Store listing | **PARTIAL** | en-US + icon + feature graphic + screenshots; category/contact may still need dashboard steps |
+| Policy forms | **DONE** | Ads, Ad ID, Sign-in, IARC, Target audience, Data safety, Financial, Health saved |
+| Internal testing | **DONE (Active)** | **15 (1.5.8)** available; testers list selected |
+| Release warnings | **1 fixed / 2 soft** | Testers fixed. Deobfuscation + native symbols soft (see below) |
+| Production / public | **NOT LIVE** | Store URL 404 |
+
+### Internal release warnings (15 / 1.5.8)
+
+1. **No testers** — **FIXED:** created list `Internal testers`, selected it, Save → track **Active**.
+2. **No deobfuscation / Retrace file** — **soft / left:** `isMinifyEnabled = false` in `app/build.gradle.kts`, so no `mapping.txt` exists. Safe to ignore unless R8 minify is enabled on a future build.
+3. **No native debug symbols** — **soft / left:** AAB ships small AndroidX `.so` libs (`libandroidx.graphics.path.so`, `libdatastore_shared_counter.so`) without AGP-generated `native-debug-symbols.zip`. Fix on next bundle: set `ndk.debugSymbolLevel` and rebuild, then upload symbols via bundle ⋮ menu. Not blocking.
+
+### What changed in 1.5.9
+
+Reviewed 1.5.8's new billing + HLS/DASH work. Every item below produced a
+plausible-looking result rather than a visible failure, which is why internal
+testing did not surface them.
+
+**Billing**
+1. **Refunds never revoked Pro.** The entitlement was write-once: granted on
+   purchase and never re-checked. `queryPurchasesAsync` — the call whose whole
+   job is "what does this user still own?" — could only ever grant. A refunded,
+   charged-back or revoked purchase kept Pro forever. Only the authoritative
+   query re-locks; the incremental purchase callback still grants only, since
+   an empty list there means "nothing new", not "you own nothing".
+2. **Pending payments looked like failures.** UPI mandates, netbanking and cash
+   settle asynchronously — the common case for Indian buyers. Those purchases
+   were skipped silently, so a customer paid and saw a still-locked app with no
+   explanation. Now stated explicitly.
+3. **A paying customer was shown an upgrade ad on launch.** `isPro` started
+   `false` while DataStore loaded, and `false` meant both "not Pro" and "not
+   known yet". Since the current screen is `rememberSaveable`, a Pro user who
+   was on Page Media got bounced to Home and prompted to buy what they already
+   owned, every cold start. Loading is now a distinct third state.
+
+**DASH**
+4. **`$Number%05d$` templates never expanded.** The pattern was built from an
+   unescaped `$`, which regex reads as an end-of-input anchor, so it could not
+   match — and the literal token went into the request URL. Padded numbering is
+   the common form in real manifests, so those streams 404'd every segment.
+5. **`$Time$` became the constant `0`,** making every segment URL in a
+   `<SegmentTimeline>` manifest identical: the same few seconds written N times
+   into a full-size file that will not play. Now refused.
+6. **Missing duration was guessed as three segments,** truncating a
+   feature-length video to a few seconds and reporting success. Now refused.
+
+**HLS**
+7. **`#EXT-X-BYTERANGE` was ignored.** Those entries are slices of one file, so
+   the same URL repeats; downloading each whole produced a file several times
+   the correct size containing duplicated bytes. Now refused.
+
+**Hardening**
+- Page scanning read only the first ~8 KiB of a page. okio's `read(sink, n)`
+  fills one segment per call rather than reading up to `n`, so the 2 MiB cap
+  was never reached and any `<video>` below the fold read as "no media found".
+- Segment lists from remote manifests are capped (HLS 20k, DASH 5k) so a
+  hostile playlist cannot exhaust memory before a byte is fetched.
+- `BillingManager.end()` now cancels its coroutine scope instead of leaving
+  work queued against a closed client.
+
+Refusing is deliberate in 4–7: a clear "VDR can't download this yet" is worth
+more than a file that looks finished and will not play.
+
+### BillDesk onboarding
+
+Merchant-onboarding answers (website/APK fields, business info, declared
+income, PEP status) are kept out of this file — the repo is public and those
+are personal business details rather than anything about the app.
+
+See `play/BILLDESK-PRIVATE.md`, which is gitignored and stays on your machine.
+
+**Status:** Video KYC still pending — human agents only, Mon–Sat 09:30–18:00
+IST. `vdr_pro` cannot be activated until it clears, so the Pro purchase flow
+is built and tested but not yet transactable.
+
+## Monetization (freemium — not a paid download)
+
+**Model:** Free app download + one-time Pro unlock via Google Play Billing.
+
+| | |
+| --- | --- |
+| Product ID | `vdr_pro` |
+| Type | One-time in-app product (non-consumable / lifetime unlock) |
+| Target price | **₹1 INR** (use Play’s minimum INR if Console rejects ₹1 — report actual) |
+| App listing price | **Free** (do **not** set the whole app to Paid) |
+
+### Free (always)
+- Add single URL / clipboard paste download
+- Pause / resume / cancel
+- View download list; open completed files / folder
+- Basic settings (speed limit, Wi‑Fi only)
+
+### Pro (gated — Unlock Pro for ₹1 sheet: Buy / Restore / Not now)
+- Page media scan (globe / Scan page / list videos from a page)
+- Batch / multi-URL queue from clipboard
+- Segments above free cap (free max **4**; Pro up to **32**)
+- Focus Guard
+
+### Code
+- `billing-ktx` + `BillingManager` / `ProEntitlement` / `ProGates`
+- Debug builds: long-press title to fake unlock (not in release)
+
+### Console status (2026-08-26)
+- App remains **Free** (paid-app ₹1 direction abandoned).
+- **Payments profile:** **exists** — Individual “Jayendar S”, profile ID `4280-5807-3189` (India / INR).  
+  https://play.google.com/console/u/0/developers/5667084395209045347/paymentssettings
+- **Merchant accounts:** created but both show **Issue with account**  
+  - Cross border `7695-7184-9564-3355`  
+  - India only `8488-6695-2592-8969`
+- **BillDesk PA-CB:** Application `2608267849` — Website/APK + Business submitted. **Remaining:** Video KYC at `https://connect.billdesk.com/videoKyc` (or email link from `onboarding@billdesk.com`). Agents Mon–Sat 09:30–18:00 IST; need camera/location + original PAN (and address proof if uploaded).
+- **Website/APK values used:** Website URL `jayr91.github.io` · APP Name `VDR` · Mobile App APK URL `https://play.google.com/store/apps/details?id=com.jayr91.vdr`
+- **One-time products / `vdr_pro`:** still blocked — do **not** create until merchant “Issue with account” clears.
+- After Video KYC approval → create/activate `vdr_pro` at ₹1 → upload **1.5.8** AAB. Free listing/Internal work can proceed without IAP.
+
+FFmpeg remux (mpegts→mp4, stream copy only) previously added native libs; current builds use platform MediaMuxer (see README / `THIRD_PARTY_NOTICES.md`).
 
 ## Signing (already created on this machine)
 
@@ -24,54 +158,73 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 ANDROID_HOME=/opt/homebrew/share/android-
 ```
 
 Upload `app/build/outputs/bundle/release/app-release.aab` to **Internal testing**
-first, then promote when the listing, Data safety, and content rating are complete.
+first, then promote when the listing, Data safety, content rating, and Pro IAP are complete.
+
+## Publishing status (2026-08-26)
+
+### Done in Play Console
+- **Internal testing AAB uploaded:** App bundle **14 (1.5.7)** as **Draft / Inactive** (setup **1 of 3**: Create release ✓; still need Select testers + Preview/confirm). Supersede with **15 (1.5.8)** after Pro + merchant.
+  - Prepare URL: https://play.google.com/console/u/0/developers/5667084395209045347/app/4975586487357388428/tracks/4701575606071485981/releases/1/prepare
+  - Track: https://play.google.com/console/u/0/developers/5667084395209045347/app/4975586487357388428/tracks/internal-testing
+- **Languages:** Manage languages confirmed **only en-US** selected (Default). No extra locales enabled.
+- **Store listing (en-US):** Title `VDR`, short 70 / full 1639 present; icon + feature graphic present. Re-paste short description if freemium copy changed in `play/paste/*`.
+- **Agent note (same day):** Logged-in Chrome automation verified the above; tablet screenshot file-picker upload and release confirm were blocked by local automation approvals / SPA redirects. No Data safety answers invented.
+
+### Done locally / verified
+- Freemium Pro gates + Billing Library in **1.5.8 / versionCode 15**
+- **Signed release AAB rebuilt (2026-08-26):** `app/build/outputs/bundle/release/app-release.aab` + copy `play/artifacts/vdr-1.5.8-vc15.aab` (~12 MiB); merged manifest includes `com.android.vending.BILLING`
+- Store copy: `play/store-listing.txt` / `play/paste/*` (free + Pro unlock ₹1)
+- 10-inch tablet screenshots ready locally: `play/screenshots/tablet-10/` (1200×1920)
+- Privacy policy live: https://jayr91.github.io/vdr-android/privacy-policy.html (Play handles purchase; no VDR server collection)
+- API helper (optional): `play/upload-internal.sh` (needs service-account JSON; do not commit)
+
+### Still manual / incomplete
+- **Complete BillDesk merchant KYC** (PA-CB) — only human blocker; profile/merchant rows already exist with “Issue with account”.
+- **Create & activate** one-time product `vdr_pro` at ₹1 INR (or Console minimum) after payments issues clear.
+- Upload **1.5.8** AAB (`versionCode` 15) to Internal — built locally with `com.android.vending.BILLING`:  
+  `app/build/outputs/bundle/release/app-release.aab` (also copied to `play/artifacts/vdr-1.5.8-vc15.aab`, ~12 MiB).
+- Upload **10-inch tablet screenshots** from `play/screenshots/tablet-10/`; Save listing; Internal **Select testers → Preview → rollout**.
+- **Data safety**, **content rating**, ads/news declarations — then Production only after Internal + live IAP.
+- Production **not** live.
 
 ## Play Console checklist
 
-Do these in order. Do not upload a production release until Internal testing
-installs cleanly.
-
-1. **Create the app** in [Play Console](https://play.google.com/console) → Create app. Package name must be `com.jayr91.vdr`. App name: **VDR**. Default language: English. App or game: App. Free. Declarations: this is not a news app, not a government app.
-2. **Store listing** — copy from `store-listing.txt`. Short description: direct HTTP files, resume, clipboard paste, Wi-Fi only. Full description must say VDR downloads **direct files only**, saves to **Downloads/VDR**, and does **not** download YouTube/watch pages. Upload `play/icon-512.png`, `play/feature-graphic-1024x500.png`, plus phone (and 7-inch tablet if you have one) screenshots of the download list. Screenshots are not in-repo — capture from a device and upload under Store listing.
-3. **Privacy policy URL** — Play needs a public HTTPS page. Enable GitHub Pages on this repo (Settings → Pages → Deploy from branch `master` / folder `/docs`) and use `https://jayr91.github.io/vdr-android/privacy-policy.html`. Source file: `docs/privacy-policy.html` (same content as `play/privacy-policy.html`). Until Pages is live, host that HTML on any HTTPS site you control. Do not use a raw GitHub URL.
-4. **Data safety** — Data collected: none sent off-device to you. No account, no analytics, no advertising ID. Files stay on the device under Downloads/VDR. Clipboard is read locally to offer a URL and is not uploaded. Notifications: download progress only.
-5. **Content rating** — start the IARC questionnaire. This is a utility; no user-generated content, no violence, no sharing other people’s personal info. Target: Everyone.
-6. **Upload the AAB to Internal testing first** — Testing → Internal testing → Create a new release → upload `app/build/outputs/bundle/release/app-release.aab` (1.1.0 / versionCode 3). Add yourself as a tester, install from the testing link, confirm a direct file downloads to Downloads/VDR and that a YouTube page URL is rejected. Only then promote to Closed / Production.
-
-Countries, ads declaration (no ads), and news/COVID declarations are also required before Production.
+1. **Create the app** — **done** (`com.jayr91.vdr` / VDR). Free.
+2. **Payments profile / merchant** — profile + merchant accounts exist; finish **BillDesk KYC** until “Issue with account” clears.
+3. **One-time product `vdr_pro`** — ₹1 INR lifetime unlock; activate (blocked until #2).
+4. **Store listing** — paste from `store-listing.txt` / `play/paste/*`. Keep **only en-US**.
+5. **Privacy policy URL** — `https://jayr91.github.io/vdr-android/privacy-policy.html`.
+6. **Data safety** — no off-device collection by VDR; purchases via Google Play.
+7. **Content rating** — IARC utility; target Everyone.
+8. **Upload AAB to Internal testing** — 1.5.8 / versionCode 15. Add yourself as tester; only then promote to Production.
 
 ## Store listing
 
-Copy from `store-listing.txt`. Honest facts for this build:
+Copy from `store-listing.txt`. Honest facts:
 
-- Direct HTTP(S) **files** only — not YouTube or other watch/share pages
-- Clipboard paste and Android share-in of text URLs
-- Optional **Wi-Fi only**
-- Completed files in **Downloads/VDR** (by category)
-- No account, ads, or analytics
+- Free download; optional Pro unlock ₹1
+- Direct HTTP(S) files and playlist URLs you provide — not YouTube watch pages
+- Clipboard paste and share-in of text URLs
+- Optional Wi-Fi only; completed files in Downloads/VDR
 
-Do not market this as Internet Download Manager, IDM, or a YouTube downloader.
+Do not market as IDM or a YouTube downloader.
 
-## Privacy policy URL
+### Languages
 
-Play needs a **public HTTPS page**, not a gitignored file.
-
-1. Preferred: enable GitHub Pages on [JayR91/vdr-android](https://github.com/JayR91/vdr-android) → Settings → Pages → Branch `master` / folder `/docs`. Then use `https://jayr91.github.io/vdr-android/privacy-policy.html`.
-2. Until Pages is on: paste the HTML from `docs/privacy-policy.html` onto any HTTPS host you control.
-3. Avoid relying on GitHub **raw** (`raw.githubusercontent.com/.../privacy-policy.html`) — Play often wants a real page, and browsers show the markup as text. The blob URL is also a GitHub UI page, not a clean policy.
-
-Source in this repo: [docs/privacy-policy.html](https://github.com/JayR91/vdr-android/blob/master/docs/privacy-policy.html) (mirrored at `play/privacy-policy.html`)
+Keep **only English (United States)**. Remove empty locales / en-GB stubs.
 
 ## Data safety (Play form)
 
 - App does **not** collect user data for you to “send off the device”
 - No account, no analytics, no advertising ID
 - Files the user downloads are stored **on the device** (Downloads/VDR)
-- Clipboard is read locally to offer a URL; not uploaded
+- Clipboard is read locally; not uploaded
+- Purchases: processed by Google Play (not a VDR server)
 - Notifications: download progress only
 
 ## Photos
 
-Phone and 7-inch tablet screenshots of the download list (Play requires them).
-High-res icon: `play/icon-512.png`. Feature graphic: `play/feature-graphic-1024x500.png`.
-Phone screenshots still need to be captured on a device and uploaded in Console.
+- High-res icon: `play/icon-512.png`
+- Feature graphic: `play/feature-graphic-1024x500.png`
+- **10-inch tablet screenshots:** `play/screenshots/tablet-10/`
+- **Phone screenshots:** capture/upload if Console still requires them

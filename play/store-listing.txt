@@ -1,34 +1,47 @@
-App name (30 chars max): VDR
+# VDR Google Play store listing — English only
+# Paste into Play Console → Grow → Store presence → Main store listing
+# Default language: English (United States) — en-US
+# Keep only English until you have full translations. Incomplete extra
+# languages cause "some languages have errors".
+#
+# Limits: Title ≤ 50 · Short description ≤ 80 · Full description ≤ 4000
 
-Short description (80 chars max):
-Direct HTTP file downloads with resume, clipboard paste, and Wi-Fi only.
+----- READY TO PASTE: Title (3 / 50) -----
+VDR
 
-Full description:
+----- READY TO PASTE: Short description (64 / 80) -----
+Direct HTTP downloads with HLS/DASH; free + Pro unlock ₹1.
 
-VDR 1.1 is a free download manager for Android. Paste a direct HTTP or HTTPS file URL and VDR fetches it in parallel byte-range segments, with pause, resume, and retries.
+----- READY TO PASTE: Full description (1639 / 4000) -----
+VDR is a free download manager for Android. Paste a direct HTTP or HTTPS file URL — or a direct HLS .m3u8 / clear DASH .mpd playlist URL you have the right to download — and VDR fetches it with pause, resume, and retries. Optional Pro (one-time in-app purchase) unlocks page media scan, multi-URL batch queue, more download segments, and Focus Guard.
 
 What it does
-• Direct files only — for example .mp4, .zip, .pdf, .apk. It will not fetch YouTube, Instagram, TikTok, or other watch/share pages; those links are rejected.
+• Direct files — for example .mp4, .zip, .pdf, .apk, .ts, .m4s, audio, and .srt/.vtt subtitles.
+• Optional HLS playlist download when you provide the playlist URL (.m3u8). Master playlists pick the highest-bandwidth variant; MPEG-TS or fMP4 (EXT-X-MAP) segments are concatenated into one file under Downloads/VDR/Videos.
+• Optional clear DASH (.mpd) when you provide the manifest URL. DRM / ContentProtection manifests are rejected.
 • Add a URL by typing it, pasting from the clipboard, or sharing text from your browser.
 • Optional Wi-Fi only — downloads wait until you are on unmetered Wi-Fi.
-• Finished files are saved under Downloads/VDR, grouped into Videos, Documents, Zips, Audio, Images, or Other so Files and Gallery can open them.
+• Finished files are saved under Downloads/VDR, grouped into Videos, Documents, Subtitles, Zips, Audio, Images, or Other.
 • Pause and resume, including after the app is closed (a small sidecar keeps progress).
-• Optional speed cap so the rest of the phone stays usable.
-• Focus Guard can pause on battery or Battery Saver, and slow transfers while you use the app.
-• Progress shows in a notification.
+• Optional speed cap and Focus Guard (Focus Guard is part of optional Pro).
 
-What it does not do
-VDR does not extract streams from YouTube or similar sites. It is not Internet Download Manager and does not claim IDM compatibility.
+Pricing
+VDR downloads from the Play Store for free. An optional one-time Pro unlock (product id vdr_pro) is offered in the app for advanced features. Purchases are handled by Google Play.
+VDR does not extract streams from YouTube, Odysee, Netflix, or similar watch pages. It does not bypass DRM (Widevine/FairPlay) or decrypt commercial streams. It is not Internet Download Manager and does not claim IDM compatibility.
 
 Privacy
 No account, no ads, no analytics. Clipboard text is read on the device only to offer a URL. Network traffic goes only to the hosts of the URLs you start. Files stay in Downloads/VDR. See the in-listing privacy policy.
 
 VDR is free software under the GNU GPL v3, ported from the desktop VDR project.
+----- END PASTE -----
 
+# Console metadata (not paste fields)
 Category: Tools
-Tags: download manager, resumable download, file downloader
-Default language: English
-Price: Free
+Tags: download manager, resumable download, file downloader, HLS, DASH
+Default language: English (United States) — en-US
+Do not also enable English (United Kingdom) unless you paste a full duplicate listing there.
+Price: Free (optional one-time Pro IAP `vdr_pro`, target ₹1 INR)
 Content rating: intended for everyone (utility; no user-generated content)
 Data safety: no account; no collected data shared; files you download stay on the device
 Privacy policy: host play/privacy-policy.html on HTTPS (GitHub Pages recommended)
+Graphics: use default (language-neutral) icon, feature graphic, and screenshots — do not add per-language graphics until that language has complete text

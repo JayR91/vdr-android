@@ -1,0 +1,1 @@
+Direct HTTP downloads with HLS/DASH playlists, resume, and Wi-Fi only.

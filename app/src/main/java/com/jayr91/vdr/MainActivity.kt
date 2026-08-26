@@ -8,15 +8,26 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.jayr91.vdr.engine.DirectUrl
+import com.jayr91.vdr.engine.MediaGrabber
+import com.jayr91.vdr.engine.PageProbeResult
 import com.jayr91.vdr.service.DownloadService
 import com.jayr91.vdr.ui.VdrApp
 import com.jayr91.vdr.ui.theme.VdrTheme
+import kotlin.concurrent.thread
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        const val EXTRA_OPEN_BROWSE = "com.jayr91.vdr.OPEN_BROWSE"
+        const val EXTRA_BROWSE_URL = "com.jayr91.vdr.BROWSE_URL"
+    }
+
     private val notifyPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
@@ -24,6 +35,9 @@ class MainActivity : ComponentActivity() {
     private val storagePermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
+
+    private val openBrowseFlow = MutableStateFlow(false)
+    private val browseUrlFlow = MutableStateFlow<String?>(null)
 
     private val lifecycleObserver = LifecycleEventObserver { _, event ->
         if (event == Lifecycle.Event.ON_START || event == Lifecycle.Event.ON_STOP) {
@@ -45,17 +59,33 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT < 29) {
             storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
+        consumeBrowseExtras(intent)
         handleShare(intent)
         setContent {
+            val openBrowse by openBrowseFlow.collectAsState()
+            val browseUrl by browseUrlFlow.collectAsState()
             VdrTheme {
-                VdrApp()
+                VdrApp(
+                    openBrowse = openBrowse,
+                    initialBrowseUrl = browseUrl,
+                    onBrowseConsumed = { openBrowseFlow.value = false },
+                )
             }
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
+        consumeBrowseExtras(intent)
         handleShare(intent)
+    }
+
+    private fun consumeBrowseExtras(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_OPEN_BROWSE, false) == true) {
+            browseUrlFlow.value = intent.getStringExtra(EXTRA_BROWSE_URL)
+            openBrowseFlow.value = true
+        }
     }
 
     private fun handleShare(intent: Intent?) {
@@ -66,8 +96,27 @@ class MainActivity : ComponentActivity() {
         } ?: return
         val urls = DirectUrl.extractHttpUrls(text)
         urls.forEach { url ->
-            DownloadService.send(this, DownloadService.ACTION_ADD) {
-                putExtra(DownloadService.EXTRA_URL, url)
+            if (DirectUrl.looksLikeDirectFile(url) || DirectUrl.isBlockedWatchPage(url)) {
+                DownloadService.send(this, DownloadService.ACTION_ADD) {
+                    putExtra(DownloadService.EXTRA_URL, url)
+                }
+                return@forEach
+            }
+            val appCtx = applicationContext
+            thread(name = "vdr-share-probe", isDaemon = true) {
+                when (val result = MediaGrabber.probePageUrl(url)) {
+                    is PageProbeResult.Media -> {
+                        // Queue the best candidate only (preferMediaOrder already applied).
+                        val best = result.urls.firstOrNull() ?: return@thread
+                        DownloadService.send(appCtx, DownloadService.ACTION_ADD) {
+                            putExtra(DownloadService.EXTRA_URL, best)
+                        }
+                    }
+                    is PageProbeResult.DirectFile -> DownloadService.send(appCtx, DownloadService.ACTION_ADD) {
+                        putExtra(DownloadService.EXTRA_URL, url)
+                    }
+                    else -> { /* do not queue HTML */ }
+                }
             }
         }
     }

@@ -139,8 +139,11 @@ class DownloadService : Service() {
 
     private fun addUrl(url: String, segments: Int, scheduledAt: Long?) {
         val pageError = DirectUrl.rejectionMessage(url)
-        val name = Organizer.filenameFromUrl(url)
-        val category = Organizer.categoryFor(name)
+        val name = Organizer.outputNameForUrl(url)
+        val category = when {
+            DirectUrl.looksLikeHlsUrl(url) || DirectUrl.looksLikeDashUrl(url) -> "Videos"
+            else -> Organizer.categoryFor(name)
+        }
         val dest = File(File(getExternalFilesDir(null), category), name).let { original ->
             if (!original.exists()) original
             else {
@@ -174,13 +177,20 @@ class DownloadService : Service() {
     private fun publishIfCompleted(task: DownloadTask) {
         if (task.status != DownloadStatus.COMPLETED) return
         if (!task.contentUri.isNullOrBlank()) return
-        if (!task.destFile.exists()) return
+        val file = task.outputFile
+        if (!file.exists()) return
         try {
-            val published = PublicStore.publish(this, task.destFile, task.displayName, task.category)
+            val published = PublicStore.publish(
+                this,
+                file,
+                task.resolvedDisplayName,
+                task.category,
+            )
             task.publicPath = published.displayPath
             task.contentUri = published.contentUri
-            task.destFile.delete()
+            file.delete()
             task.stateFile.delete()
+            if (task.destFile != file) task.destFile.delete()
         } catch (e: Exception) {
             if (task.errorMessage.isBlank()) {
                 task.errorMessage = "Downloaded, but could not save to Downloads/VDR: ${e.message}"
@@ -304,16 +314,24 @@ class DownloadService : Service() {
     private fun updateNotification() {
         val snap = queue.snapshot()
         val active = snap.filter {
-            it.status in setOf(DownloadStatus.DOWNLOADING, DownloadStatus.CONNECTING)
+            it.status in setOf(
+                DownloadStatus.DOWNLOADING,
+                DownloadStatus.CONNECTING,
+                DownloadStatus.REMUXING,
+            )
         }
         val text = when {
             queue.wifiBlocked() -> "Waiting for Wi‑Fi — ${snap.size} in queue"
             active.isEmpty() -> "Idle — ${snap.size} in queue"
             active.size == 1 -> {
                 val t = active.first()
-                val pct = if (t.totalBytes != null && t.totalBytes > 0)
-                    (t.downloadedBytes * 100 / t.totalBytes) else 0
-                "${t.displayName}  $pct%"
+                if (t.status == DownloadStatus.REMUXING) {
+                    "Remuxing… ${t.displayName}"
+                } else {
+                    val pct = if (t.totalBytes != null && t.totalBytes > 0)
+                        (t.downloadedBytes * 100 / t.totalBytes) else 0
+                    "${t.displayName}  $pct%"
+                }
             }
             else -> "${active.size} downloads running"
         }
@@ -323,6 +341,7 @@ class DownloadService : Service() {
 
     private fun notificationTarget(snap: List<TaskSnapshot>): TaskSnapshot? {
         val order = listOf(
+            DownloadStatus.REMUXING,
             DownloadStatus.DOWNLOADING,
             DownloadStatus.CONNECTING,
             DownloadStatus.WIFI_HOLD,
@@ -345,8 +364,11 @@ class DownloadService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
-        if (target != null) {
-            val running = target.status in setOf(DownloadStatus.DOWNLOADING, DownloadStatus.CONNECTING)
+        if (target != null && target.status != DownloadStatus.REMUXING) {
+            val running = target.status in setOf(
+                DownloadStatus.DOWNLOADING,
+                DownloadStatus.CONNECTING,
+            )
             if (running) {
                 builder.addAction(
                     android.R.drawable.ic_media_pause,
@@ -360,6 +382,12 @@ class DownloadService : Service() {
                     servicePending(ACTION_RESUME, target.id, 22),
                 )
             }
+            builder.addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "Cancel",
+                servicePending(ACTION_CANCEL, target.id, 23),
+            )
+        } else if (target != null) {
             builder.addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,
                 "Cancel",
