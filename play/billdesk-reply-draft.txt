@@ -4,20 +4,23 @@ Re: Application ID 2608267849 — clarification on Mobile Application accessibil
 
 Thank you for your email dated 28 Aug 2026 regarding the mobile application verification.
 
-The VDR Android app (package name: com.jayr91.vdr) is registered on Google Play Console and is currently available via Google Play Internal testing (not yet published to Production/public listing). For this reason, the public Play Store details URL (https://play.google.com/store/apps/details?id=com.jayr91.vdr) returns 404 when accessed without a published Production release.
+The VDR Android app (package name: com.jayr91.vdr) is registered on Google Play Console and is currently available via Google Play Internal testing. It is not yet published to Production, so the public Play Store details URL returns HTTP 404:
 
-Please find the following working links for verification:
+https://play.google.com/store/apps/details?id=com.jayr91.vdr
 
-• Google Play Internal testing opt-in (live): https://play.google.com/apps/internaltest/4701575606071485981
-• Privacy policy (live): https://jayr91.github.io/vdr-android/privacy-policy.html
-• Project / source repository (live): https://github.com/JayR91/vdr-android
-• Website: https://jayr91.github.io/vdr-android/
+We also attempted to update the Mobile App APK URL to our Google Play Internal testing opt-in link, but your portal rejected that URL as well. We understand that BillDesk requires a publicly accessible Play Store listing URL in the format shown in your form example (e.g. WhatsApp's store/apps/details?id=… link).
+
+The public URL above will become live once we complete Google Play's mandatory closed testing (12 testers for 14 days) and production access review. We are actively working through this process.
+
+Supporting information for verification:
+
 • Package name: com.jayr91.vdr
-• Current internal release: version 1.5.8 (versionCode 15), track Active
+• Privacy policy (live): https://jayr91.github.io/vdr-android/privacy-policy.html
+• Website (live): https://jayr91.github.io/vdr-android/
+• Project / source repository (live): https://github.com/JayR91/vdr-android
+• Current internal release: version 1.5.8 (versionCode 15), Internal testing track Active
 
-We request that the Mobile App APK URL field be updated to the Internal testing opt-in link above, or that pre-launch/internal testing access be accepted for verification purposes. We are also preparing a Production release application on Google Play Console.
-
-Please advise if any additional information is required. We remain available to complete Video KYC during agent hours (Mon–Sat 09:30–18:00 IST).
+We request that APK URL verification be deferred until our Production listing is approved, or that you advise an acceptable interim URL format. We remain available to complete Video KYC during agent hours (Mon–Sat 09:30–18:00 IST).
 
 Best regards,
 Jayendar S

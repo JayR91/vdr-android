@@ -49,8 +49,18 @@ fun ProUpgradeDialog(
     val context = LocalContext.current
     val error by billing.lastError.collectAsState()
     val details by billing.productDetails.collectAsState()
-    val priceLabel = details?.oneTimePurchaseOfferDetails?.formattedPrice
-        ?: "₹1"
+    val offer = details?.oneTimePurchaseOfferDetails
+
+    // Play has to tell us the product exists and what it costs before we can
+    // offer it. Until vdr_pro is activated -- which is gated on merchant
+    // onboarding, not on this app -- there is nothing to sell, and every path
+    // through launchBillingFlow() ends in an error toast.
+    //
+    // So do not advertise a purchase that cannot complete: no price in the
+    // title (the old "₹1" was a hardcoded fallback shown even when nothing was
+    // for sale) and no Buy button whose only outcome is failure. The features
+    // stay gated either way; this only changes what we claim about them.
+    val purchasable = offer != null
 
     LaunchedEffect(isPro) {
         if (isPro) onDismiss()
@@ -58,15 +68,28 @@ fun ProUpgradeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Unlock Pro for $priceLabel") },
+        title = {
+            Text(
+                if (purchasable) "Unlock Pro for ${offer!!.formattedPrice}" else "Pro is coming soon",
+            )
+        },
         text = {
             Column {
                 Text(
-                    "Pro unlocks page media scan, multi-URL batch queue, more download segments, and Focus Guard. " +
-                        "One-time purchase — restore anytime on this Google account.",
+                    if (purchasable) {
+                        "Pro unlocks page media scan, multi-URL batch queue, more download segments, " +
+                            "and Focus Guard. One-time purchase — restore anytime on this Google account."
+                    } else {
+                        "Page media scan, multi-URL batch queue, more download segments and Focus Guard " +
+                            "will arrive as a one-time Pro purchase. They are not on sale yet — everything " +
+                            "else in VDR is free and stays that way."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                if (!error.isNullOrBlank()) {
+                // Only surface an error next to a purchase the user could
+                // actually have attempted; "not for sale yet" is already the
+                // message above, not a fault to report.
+                if (purchasable && !error.isNullOrBlank()) {
                     Spacer(Modifier.height(8.dp))
                     Text(
                         error!!,
@@ -78,24 +101,26 @@ fun ProUpgradeDialog(
         },
         confirmButton = {
             Column(Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = {
-                        val activity = context as? Activity
-                        if (activity == null) {
-                            Toast.makeText(context, "Open VDR from the launcher to buy", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-                        if (!billing.launchPurchase(activity)) {
-                            Toast.makeText(
-                                context,
-                                billing.lastError.value ?: "Billing unavailable",
-                                Toast.LENGTH_LONG,
-                            ).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Buy") }
-                Spacer(Modifier.height(8.dp))
+                if (purchasable) {
+                    Button(
+                        onClick = {
+                            val activity = context as? Activity
+                            if (activity == null) {
+                                Toast.makeText(context, "Open VDR from the launcher to buy", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            if (!billing.launchPurchase(activity)) {
+                                Toast.makeText(
+                                    context,
+                                    billing.lastError.value ?: "Billing unavailable",
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Buy") }
+                    Spacer(Modifier.height(8.dp))
+                }
                 Button(
                     onClick = {
                         billing.restorePurchases()

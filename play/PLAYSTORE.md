@@ -9,9 +9,11 @@ listing copy, privacy policy, and a signed App Bundle.
 **Privacy policy (live):** https://jayr91.github.io/vdr-android/privacy-policy.html  
 **Signed AAB:** `app/build/outputs/bundle/release/app-release.aab` (~12 MiB) · also `play/ready/app-release-1.5.8.aab`
 
-## Status dashboard (2026-08-28 ~13:55 IST)
+## Status dashboard (2026-08-28 ~14:10 IST)
 
 **Latest:** **16 (1.5.9)** built and signed locally, **not yet uploaded**. Supersedes Internal **15 (1.5.8)**, which is rolled out with track **Active** and email list `Internal testers` (`jayradbus@gmail.com`). BillDesk / `vdr_pro` / IAP **still deferred**. Chrome: keep **1 Play + 1 BillDesk** max.
+
+**Blocker:** Public Play Store URL returns **HTTP 404**; Production track is **locked**. BillDesk **rejects** both the public URL (404) and the internal-testing opt-in URL (wrong format / not publicly accessible). Only a live `play.google.com/store/apps/details?id=com.jayr91.vdr` will satisfy BillDesk's Mobile App APK URL field.
 
 **1.5.9 is a correctness release** — it fixes bugs in 1.5.8 that produced wrong results rather than errors. See "What changed in 1.5.9" below.
 
@@ -27,12 +29,57 @@ listing copy, privacy policy, and a signed App Bundle.
 | Review + fixes 1.5.9 | **DONE** | 10 defects fixed, 9 regression tests added; 38 unit tests green; lint clean |
 | Signed AAB 1.5.9 / vc16 | **BUILT, NOT UPLOADED** | `play/artifacts/vdr-1.5.9-vc16.aab`; needs `PLAY_JSON` to upload |
 | On-device smoke test | **DONE (2026-08-28)** | realme RMX3312, Android 13 / API 33. Launch, share-to-download, segmented reassembly (byte-identical), Pro dialog — all pass |
-| Store listing | **PARTIAL** | en-US + icon + feature graphic + screenshots; category/contact may still need dashboard steps |
+| Store listing | **PARTIAL (2 tasks left)** | Copy + graphics saved; **Category: Not selected**; contact email/phone/website empty — Grow → Store settings |
 | Policy forms | **DONE** | Ads, Ad ID, Sign-in, IARC, Target audience, Data safety, Financial, Health saved |
-| Internal testing | **DONE (Active)** | **15 (1.5.8)** available; testers list selected |
+| Internal testing | **DONE (Active)** | **15 (1.5.8)** available to internal testers (Aug 26); not reviewed |
+| Closed testing | **NOT STARTED** | **0 testers opted-in**; locked until store setup complete |
 | Release warnings | **1 fixed / 2 soft** | Testers fixed. Deobfuscation + native symbols soft (see below) |
-| Production / public | **NOT LIVE** | Store URL **404**; Production locked — apply via Dashboard |
-| BillDesk clarification | **ACTION NEEDED** | Mobile app “not live” — update APK URL to internal-testing link |
+| Production / public | **LOCKED** | Store URL **404**; need **12 testers × 14 days** closed test → Apply for production → rollout |
+| BillDesk Mobile App URL | **BLOCKED** | Public URL 404; internal-test URL **also rejected** by BillDesk portal |
+
+### Path to a live public Play Store URL
+
+Verified **2026-08-28** via `curl` and Play Console (personal account **Rad91**):
+
+```
+Public URL:     https://play.google.com/store/apps/details?id=com.jayr91.vdr  → HTTP 404
+Internal test:  https://play.google.com/apps/internaltest/4701575606071485981  → HTTP 302 (Google sign-in)
+Privacy policy: https://jayr91.github.io/vdr-android/privacy-policy.html      → HTTP 200
+```
+
+**Play Console status (live check):**
+- Dashboard: **9 of 11** setup tasks complete
+- App status: **Draft** · Internal testing **Active** · release **15 (1.5.8)** (Aug 26, not reviewed)
+- **Incomplete (blocks closed test):**
+  1. **Store settings** — Category **Not selected**; contact email / phone / website empty (Grow → Store presence → Store settings)
+  2. **Store listing** — dashboard still shows "Set up your store listing" (upload phone + 10" tablet screenshots from `play/screenshots/`, Save)
+- **Closed testing:** 0 testers opted-in; track locked until setup complete
+- **Production:** locked — personal accounts created after Nov 2023 must:
+  1. Publish a **closed testing** release (Internal track does **not** count)
+  2. Have **≥ 12 testers** continuously opted-in for **14 consecutive days**
+  3. Click **Apply for production** on Dashboard → answer 3-section questionnaire
+  4. Google reviews application (~7 days or less)
+  5. Create Production release → Send for review → Start rollout
+  6. Google app review (~hours to 7 days) → public URL goes live
+
+**Cannot submit to Production today** — closed-test gate is mandatory for this account type.
+
+**Fastest path (minimum ~3 weeks):**
+
+| Step | Action | Est. time |
+| --- | --- | --- |
+| 1 | Finish Store settings (category **Tools**, contact email) + store listing (screenshots) | Today (manual) |
+| 2 | Upload AAB to **Closed testing** (can use 1.5.8 or 1.5.9) | Today |
+| 3 | Recruit **12 Google accounts** → share closed-test opt-in link → confirm installs | 1–3 days |
+| 4 | Wait **14 consecutive days** with ≥12 opted-in testers | 14 days |
+| 5 | **Apply for production** + questionnaire | Same day |
+| 6 | Google production-access review | ~7 days |
+| 7 | Production release → review → rollout | ~1–7 days |
+| 8 | Re-submit BillDesk with live public URL | After step 7 |
+
+**Earliest realistic public URL:** ~3–4 weeks from today if closed test starts immediately.
+
+**Publishing overview:** changes saved but **not yet submitted for review** (Data safety, content rating, store listing, etc. queued). "Send app for review" locked until dashboard tasks complete.
 
 ### Internal release warnings (15 / 1.5.8)
 
@@ -126,6 +173,20 @@ cosmetic: newer-dependency notices and launcher-icon shape).
     to buy right now. Try again later."; the diagnostic went to logcat under
     tag `VdrBilling`.
 
+**Made the free-only release coherent (2026-08-28)**
+
+13. **The app advertised a purchase it could not complete.** With `vdr_pro`
+    not activated, the upgrade dialog still read "Unlock Pro for ₹1" — the
+    price was a hardcoded fallback shown even when Play had returned no
+    product — and offered a **Buy** button whose only possible outcome was an
+    error toast. Publishing that to the store would have shown every new user
+    a broken purchase.
+
+    When Play reports no purchasable offer the dialog now reads "Pro is coming
+    soon", drops the Buy button, and says plainly that the features are not on
+    sale yet and the rest of VDR is free. It reverts to the full purchase flow
+    on its own once `vdr_pro` goes live — no code change needed at that point.
+
 **Hardening**
 - Page scanning read only the first ~8 KiB of a page. okio's `read(sink, n)`
   fills one segment per call rather than reading up to `n`, so the 2 MiB cap
@@ -152,26 +213,37 @@ See `play/BILLDESK-PRIVATE.md`, which is gitignored and stays on your machine.
 > *Clarification required for the Individual: Mobile Application(s) is not
 > live/does not exist/not accessible*
 
-**Root cause:** BillDesk verified the submitted Mobile App APK URL
-(`https://play.google.com/store/apps/details?id=com.jayr91.vdr`) and got **404**
-because the app is on **Internal testing only** — Production access not yet
-granted by Google Play (“You don't have access to production yet”).
+**Why BillDesk rejects each URL**
 
-**Recommended fix (portal or email reply):**
-- **Mobile App APK URL** → Internal testing opt-in (live, 302 not 404):  
-  `https://play.google.com/apps/internaltest/4701575606071485981`
-- **Website URL** → keep `jayr91.github.io` or use  
-  `jayr91.github.io/vdr-android/privacy-policy.html` (200)
-- Supporting links: GitHub `https://github.com/JayR91/vdr-android` · package
-  `com.jayr91.vdr` · Internal release **15 (1.5.8)** Active
+| URL tried | HTTP | BillDesk result | Why |
+| --- | --- | --- | --- |
+| `https://play.google.com/store/apps/details?id=com.jayr91.vdr` | **404** | Rejected (original submission) | App not published to Production — no public listing exists |
+| `https://play.google.com/apps/internaltest/4701575606071485981` | **302** → Google sign-in | **Rejected** (portal validation, 28 Aug) | BillDesk form example is WhatsApp's `store/apps/details?id=…` URL; internal-test opt-in requires Google login and is not a public store listing |
+| `https://jayr91.github.io/vdr-android/privacy-policy.html` | **200** | N/A — wrong field | Goes in **Website URL**, not Mobile App APK URL |
+| GitHub pages "coming soon" landing | — | **Not acceptable** | BillDesk validates the APK URL as a live Play Store listing |
+
+**BillDesk form fields** (`connect.billdesk.com/website-details`):
+- **Website URL** → `jayr91.github.io` (live, 200). Privacy policy path also validates.
+- **APP Name** → `VDR`
+- **Mobile App APK URL** → **must** be `https://play.google.com/store/apps/details?id=com.jayr91.vdr` once Production is live. No alternate format accepted.
+
+**What to enter in BillDesk TODAY (Production still pending):**
+
+You cannot satisfy the Mobile App APK URL field until the public Play listing
+exists. Do **not** re-submit the internal-testing link — BillDesk rejected it.
+
+1. **Reply to** `onboarding@billdesk.com` (draft: `play/billdesk-reply-draft.txt`) explaining:
+   - Package `com.jayr91.vdr` is registered on Google Play Console
+   - Public store URL will be `https://play.google.com/store/apps/details?id=com.jayr91.vdr` after Google's closed-test + production-access review
+   - App is currently on Internal testing (release 15 / 1.5.8, track Active)
+   - Request temporary acceptance or ask BillDesk to pause APK verification until the listing is live
+2. **Website URL** — keep `jayr91.github.io` (do not put Play URL here)
+3. **Do not** leave the Mobile App APK URL blank if the form requires it — use the email reply to explain; if the portal forces a value, you may need BillDesk agent help via Video KYC
 
 **Action required (human):**
-1. Open BillDesk **Resume** link from the clarification email → OTP login →
-   update **Mobile App APK URL** to the internal-testing link above → re-submit.
-2. **Or** reply to `onboarding@billdesk.com` — draft at
-   `play/billdesk-reply-draft.txt`.
-3. Complete **Video KYC** (Mon–Sat 09:30–18:00 IST) — prior attempt 27 Aug was
-   unsuccessful per BillDesk email; do not skip.
+1. Complete Play Console setup (2 tasks below) → closed test → 12 testers × 14 days → Apply for production
+2. Reply to BillDesk clarification email (see draft above)
+3. Complete **Video KYC** (Mon–Sat 09:30–18:00 IST) — prior attempt 27 Aug was unsuccessful per BillDesk email
 
 Video KYC still pending — human agents only. `vdr_pro` cannot be activated until
 BillDesk clears, so the Pro purchase flow is built and tested but not yet
@@ -211,9 +283,10 @@ transactable.
 - **Merchant accounts:** created but both show **Issue with account**  
   - Cross border `7695-7184-9564-3355`  
   - India only `8488-6695-2592-8969`
-- **BillDesk PA-CB:** Application `2608267849` — Website/APK + Business submitted. **28 Aug clarification:** mobile app URL not accessible (404). **Remaining:** (1) re-submit with internal-testing APK URL, (2) Video KYC at `https://connect.billdesk.com/videoKyc` (prior attempt 27 Aug unsuccessful). Agents Mon–Sat 09:30–18:00 IST.
+- **BillDesk PA-CB:** Application `2608267849` — Website/APK + Business submitted. **28 Aug clarification:** mobile app URL not accessible (404). **28 Aug update:** internal-testing URL **also rejected** by BillDesk portal. **Remaining:** (1) email BillDesk that Production listing pending (see draft), (2) Video KYC at `https://connect.billdesk.com/videoKyc` (prior attempt 27 Aug unsuccessful). Agents Mon–Sat 09:30–18:00 IST.
 - **Website/APK values submitted:** Website URL `jayr91.github.io` · APP Name `VDR` · Mobile App APK URL `https://play.google.com/store/apps/details?id=com.jayr91.vdr` (**404** — rejected by BillDesk).
-- **Website/APK values to re-submit:** Website URL `jayr91.github.io` · APP Name `VDR` · Mobile App APK URL `https://play.google.com/apps/internaltest/4701575606071485981`
+- **Internal-testing URL (rejected 28 Aug):** `https://play.google.com/apps/internaltest/4701575606071485981` — BillDesk portal validation failed; wrong URL format.
+- **Target Mobile App APK URL (once live):** `https://play.google.com/store/apps/details?id=com.jayr91.vdr`
 - **One-time products / `vdr_pro`:** still blocked — do **not** create until merchant “Issue with account” clears.
 - After Video KYC approval → create/activate `vdr_pro` at ₹1 → upload **1.5.8** AAB. Free listing/Internal work can proceed without IAP.
 
