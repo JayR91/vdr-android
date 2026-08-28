@@ -120,6 +120,8 @@ fun PageMediaScreen(
                     error = null
                 }
                 result is PageProbeResult.Blocked -> error = result.message
+                // Our failure to read the page, not a verdict about it.
+                result is PageProbeResult.Failed -> error = result.message
                 result is PageProbeResult.YoutubeOnly -> error = MediaGrabber.YOUTUBE_ONLY_ERROR
                 result is PageProbeResult.HtmlNoMedia -> error = MediaGrabber.NO_VIDEO_ON_PAGE
                 result is PageProbeResult.DirectFile && !MediaGrabber.isVideoishMedia(page) ->

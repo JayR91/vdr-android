@@ -9,9 +9,11 @@ listing copy, privacy policy, and a signed App Bundle.
 **Privacy policy (live):** https://jayr91.github.io/vdr-android/privacy-policy.html  
 **Signed AAB:** `app/build/outputs/bundle/release/app-release.aab` (~12 MiB) · also `play/ready/app-release-1.5.8.aab`
 
-## Status dashboard (2026-08-28 ~14:10 IST)
+## Status dashboard (2026-08-28 ~15:47 IST)
 
 **Latest:** **16 (1.5.9)** built and signed locally, **not yet uploaded**. Supersedes Internal **15 (1.5.8)**, which is rolled out with track **Active** and email list `Internal testers` (`jayradbus@gmail.com`). BillDesk / `vdr_pro` / IAP **still deferred**. Chrome: keep **1 Play + 1 BillDesk** max.
+
+**Play Console setup (today):** Store settings and en-US store listing blockers **cleared** via Chrome automation — category **Tools**, contact email **jayradbus@gmail.com**, **6× 10-inch tablet screenshots** uploaded (`play/screenshots/tablet-10/`, 1200×1920). Listing **Saved**; changes queued in Publishing overview (not yet submitted for review). Dashboard closed-test path no longer lists store settings / store listing as incomplete.
 
 **Blocker:** Public Play Store URL returns **HTTP 404**; Production track is **locked**. BillDesk **rejects** both the public URL (404) and the internal-testing opt-in URL (wrong format / not publicly accessible). Only a live `play.google.com/store/apps/details?id=com.jayr91.vdr` will satisfy BillDesk's Mobile App APK URL field.
 
@@ -29,7 +31,9 @@ listing copy, privacy policy, and a signed App Bundle.
 | Review + fixes 1.5.9 | **DONE** | 10 defects fixed, 9 regression tests added; 38 unit tests green; lint clean |
 | Signed AAB 1.5.9 / vc16 | **BUILT, NOT UPLOADED** | `play/artifacts/vdr-1.5.9-vc16.aab`; needs `PLAY_JSON` to upload |
 | On-device smoke test | **DONE (2026-08-28)** | realme RMX3312, Android 13 / API 33. Launch, share-to-download, segmented reassembly (byte-identical), Pro dialog — all pass |
-| Store listing | **PARTIAL (2 tasks left)** | Copy + graphics saved; **Category: Not selected**; contact email/phone/website empty — Grow → Store settings |
+| Scan page (Pro) | **DONE (2026-08-28)** | archive.org details page → 3 videos listed → pick → download byte-identical. 3 defects found and fixed |
+| Store listing | **DONE (en-US)** | Title/short/full + icon + feature graphic saved; **6× 10-inch tablet screenshots** uploaded (6/8 max); **Saved** 28 Aug. Phone screenshots still empty (optional for closed-test unlock; add from `play/screenshots/phone/` if Console flags them) |
+| Store settings | **DONE** | Category **Tools**; contact email **jayradbus@gmail.com**; phone/website left blank |
 | Policy forms | **DONE** | Ads, Ad ID, Sign-in, IARC, Target audience, Data safety, Financial, Health saved |
 | Internal testing | **DONE (Active)** | **15 (1.5.8)** available to internal testers (Aug 26); not reviewed |
 | Closed testing | **NOT STARTED** | **0 testers opted-in**; locked until store setup complete |
@@ -47,13 +51,12 @@ Internal test:  https://play.google.com/apps/internaltest/4701575606071485981  �
 Privacy policy: https://jayr91.github.io/vdr-android/privacy-policy.html      → HTTP 200
 ```
 
-**Play Console status (live check):**
-- Dashboard: **9 of 11** setup tasks complete
+**Play Console status (live check 28 Aug ~15:47 IST):**
+- Dashboard: store-settings + store-listing blockers **cleared**; closed-test track shows **Set up your closed test track** (countries, testers, release) — no longer blocked by Grow → Store presence tasks
 - App status: **Draft** · Internal testing **Active** · release **15 (1.5.8)** (Aug 26, not reviewed)
-- **Incomplete (blocks closed test):**
-  1. **Store settings** — Category **Not selected**; contact email / phone / website empty (Grow → Store presence → Store settings)
-  2. **Store listing** — dashboard still shows "Set up your store listing" (upload phone + 10" tablet screenshots from `play/screenshots/`, Save)
-- **Closed testing:** 0 testers opted-in; track locked until setup complete
+- **Store settings:** Category **Tools** · email **jayradbus@gmail.com** ✓
+- **Store listing (en-US):** 6× 10-inch tablet screenshots from `play/screenshots/tablet-10/` ✓ · Saved · queued in Publishing overview
+- **Closed testing:** 0 testers opted-in; next steps: select countries → testers → create closed release → 12 testers × 14 days
 - **Production:** locked — personal accounts created after Nov 2023 must:
   1. Publish a **closed testing** release (Internal track does **not** count)
   2. Have **≥ 12 testers** continuously opted-in for **14 consecutive days**
@@ -68,7 +71,7 @@ Privacy policy: https://jayr91.github.io/vdr-android/privacy-policy.html      �
 
 | Step | Action | Est. time |
 | --- | --- | --- |
-| 1 | Finish Store settings (category **Tools**, contact email) + store listing (screenshots) | Today (manual) |
+| 1 | ~~Finish Store settings + store listing~~ | **Done 28 Aug** (Tools, jayradbus@gmail.com, 6× 10" screenshots) |
 | 2 | Upload AAB to **Closed testing** (can use 1.5.8 or 1.5.9) | Today |
 | 3 | Recruit **12 Google accounts** → share closed-test opt-in link → confirm installs | 1–3 days |
 | 4 | Wait **14 consecutive days** with ≥12 opted-in testers | 14 days |
@@ -186,6 +189,36 @@ cosmetic: newer-dependency notices and launcher-icon shape).
     soon", drops the Buy button, and says plainly that the features are not on
     sale yet and the rest of VDR is free. It reverts to the full purchase flow
     on its own once `vdr_pro` goes live — no code change needed at that point.
+
+**Found testing Scan page against archive.org (2026-08-28)**
+
+14. **A failed fetch was reported as "No video files found on this page."**
+    `probePageUrl` caught every exception and returned `None`, which the UI
+    renders with that message — a claim about the page's contents made after
+    never having read it. A timeout, DNS failure or TLS error all sent the
+    user off blaming the site or the parser. There is now a
+    `PageProbeResult.Failed` carrying the real reason ("Timed out loading that
+    page", "Couldn't reach that site", …), and the cause is logged under
+    `VdrGrabber`. This is what made the next two defects findable at all.
+15. **`%2F` in a path corrupted the saved filename.** `filenameFromUrl` sliced
+    the raw URL at the last literal `/`. Archive.org serves
+    `.../Content%2Fbig_buck_bunny_720p_surround.mp4`, where `%2F` is an encoded
+    separator, so the "filename" came out as
+    `Content%2Fbig_buck_bunny_720p_surround.mp4` — and `safeFilename` strips
+    `%` as unsafe, landing the file on disk as
+    **`Content2Fbig_buck_bunny_720p_surround.mp4`**. A real download saved
+    under a name that is not its own, on the row the picker selects by
+    default. The name now comes from the decoded path.
+16. **The same file was listed twice.** Archive.org links each file both
+    encoded and plain on one page. `canonicalize` deduped on `rawPath`, so the
+    two forms never collapsed and the picker showed two identical-looking rows
+    a user could not choose between. Canonicalising on the decoded path took
+    the Big Buck Bunny page from 5 rows to 3 — one per actual format.
+
+**Scan page verified end to end** on `archive.org/details/BigBuckBunny_124`:
+globe icon → 3 videos listed (.mp4/.ogv/.avi) → pick one → Download →
+`Downloads/VDR/Videos/big_buck_bunny_720p_surround.mp4`, 61,878,609 bytes,
+**byte-identical to upstream** (SHA-256 match) over a 4-segment download.
 
 **Hardening**
 - Page scanning read only the first ~8 KiB of a page. okio's `read(sink, n)`
@@ -319,8 +352,9 @@ first, then promote when the listing, Data safety, content rating, and Pro IAP a
   - Prepare URL: https://play.google.com/console/u/0/developers/5667084395209045347/app/4975586487357388428/tracks/4701575606071485981/releases/1/prepare
   - Track: https://play.google.com/console/u/0/developers/5667084395209045347/app/4975586487357388428/tracks/internal-testing
 - **Languages:** Manage languages confirmed **only en-US** selected (Default). No extra locales enabled.
-- **Store listing (en-US):** Title `VDR`, short 70 / full 1639 present; icon + feature graphic present. Re-paste short description if freemium copy changed in `play/paste/*`.
-- **Agent note (same day):** Logged-in Chrome automation verified the above; tablet screenshot file-picker upload and release confirm were blocked by local automation approvals / SPA redirects. No Data safety answers invented.
+- **Store listing (en-US):** Title `VDR`, short 70 / full 1639 present; icon + feature graphic present; **6× 10-inch tablet screenshots uploaded** (28 Aug). Saved; queued in Publishing overview.
+- **Store settings (28 Aug):** Category **Tools**; contact email **jayradbus@gmail.com**.
+- **Agent note (28 Aug):** Chrome automation (`play/console_js/vdr_chrome.sh`) completed store settings + 10" screenshot upload via asset library; listing Save clicked. Phone screenshots still empty.
 
 ### Done locally / verified
 - Freemium Pro gates + Billing Library in **1.5.8 / versionCode 15**
@@ -333,10 +367,8 @@ first, then promote when the listing, Data safety, content rating, and Pro IAP a
 ### Still manual / incomplete
 - **Complete BillDesk merchant KYC** (PA-CB) — only human blocker; profile/merchant rows already exist with “Issue with account”.
 - **Create & activate** one-time product `vdr_pro` at ₹1 INR (or Console minimum) after payments issues clear.
-- Upload **1.5.8** AAB (`versionCode` 15) to Internal — built locally with `com.android.vending.BILLING`:  
-  `app/build/outputs/bundle/release/app-release.aab` (also copied to `play/artifacts/vdr-1.5.8-vc15.aab`, ~12 MiB).
-- Upload **10-inch tablet screenshots** from `play/screenshots/tablet-10/`; Save listing; Internal **Select testers → Preview → rollout**.
-- **Data safety**, **content rating**, ads/news declarations — then Production only after Internal + live IAP.
+- **Closed testing:** select countries → testers → upload AAB to **Closed** track (1.5.8 or 1.5.9) → 12 testers × 14 days → Apply for production.
+- Optional: upload **phone screenshots** from `play/screenshots/phone/` if Console requires them before closed-test release.
 - Production **not** live.
 
 ## Play Console checklist
@@ -344,7 +376,8 @@ first, then promote when the listing, Data safety, content rating, and Pro IAP a
 1. **Create the app** — **done** (`com.jayr91.vdr` / VDR). Free.
 2. **Payments profile / merchant** — profile + merchant accounts exist; finish **BillDesk KYC** until “Issue with account” clears.
 3. **One-time product `vdr_pro`** — ₹1 INR lifetime unlock; activate (blocked until #2).
-4. **Store listing** — paste from `store-listing.txt` / `play/paste/*`. Keep **only en-US**.
+4. **Store listing** — **done (en-US):** copy + icon + feature graphic + **6× 10-inch tablet screenshots**; Saved 28 Aug. Optional: phone shots from `play/screenshots/phone/`.
+4b. **Store settings** — **done:** category **Tools**; contact email **jayradbus@gmail.com** (28 Aug).
 5. **Privacy policy URL** — `https://jayr91.github.io/vdr-android/privacy-policy.html`.
 6. **Data safety** — no off-device collection by VDR; purchases via Google Play.
 7. **Content rating** — IARC utility; target Everyone.
@@ -378,5 +411,5 @@ Keep **only English (United States)**. Remove empty locales / en-GB stubs.
 
 - High-res icon: `play/icon-512.png`
 - Feature graphic: `play/feature-graphic-1024x500.png`
-- **10-inch tablet screenshots:** `play/screenshots/tablet-10/`
+- **10-inch tablet screenshots:** `play/screenshots/tablet-10/` — **uploaded to Play Console (6/8)** 28 Aug
 - **Phone screenshots:** capture/upload if Console still requires them

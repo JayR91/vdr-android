@@ -685,6 +685,9 @@ private fun AddUrlDialog(
             when (result) {
                 is PageProbeResult.Media -> foundMedia = result.urls
                 is PageProbeResult.Blocked -> scanError = result.message
+                // Reading the page failed; say so rather than claiming it
+                // holds no media, which we never got far enough to know.
+                is PageProbeResult.Failed -> scanError = result.message
                 PageProbeResult.YoutubeOnly -> scanError = MediaGrabber.YOUTUBE_ONLY_ERROR
                 PageProbeResult.HtmlNoMedia -> scanError = MediaGrabber.NO_MEDIA_ON_PAGE
                 PageProbeResult.DirectFile -> onConfirm(listOf(single), segments.roundToInt())

@@ -26,7 +26,19 @@ object Organizer {
     }
 
     fun filenameFromUrl(url: String): String {
-        return safeFilename(url.substringAfterLast('/').ifBlank { "download" })
+        // Split the *decoded* path, not the raw URL text.
+        //
+        // Archive.org serves files at paths like
+        // ".../BigBuckBunny_124/Content%2Fbig_buck_bunny_720p_surround.mp4",
+        // where %2F is an encoded slash. Slicing the raw string at the last
+        // literal '/' therefore yielded "Content%2Fbig_buck_bunny...mp4" as the
+        // "filename", and safeFilename() strips '%' as an unsafe character --
+        // so the file landed on disk as "Content2Fbig_buck_bunny...mp4". A real
+        // download saved under a name that is not its own, on the very entry
+        // the picker selects by default.
+        val path = DirectUrl.pathOf(url) ?: url
+        val name = path.substringAfterLast('/').substringBefore('#')
+        return safeFilename(name.ifBlank { "download" })
     }
 
     /**

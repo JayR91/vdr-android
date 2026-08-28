@@ -122,7 +122,8 @@ object DirectUrl {
         return name.endsWith(suffix)
     }
 
-    private fun pathOf(url: String): String? {
+    /** Decoded path of [url], or null if it has none. Shared with Organizer. */
+    internal fun pathOf(url: String): String? {
         val trimmed = url.trim()
         if (trimmed.isEmpty()) return null
         // The (String, Charset) overload of decode() only exists from API 33.

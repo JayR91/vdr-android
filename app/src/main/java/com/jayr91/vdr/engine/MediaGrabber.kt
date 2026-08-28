@@ -1,5 +1,6 @@
 package com.jayr91.vdr.engine
 
+import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URI
@@ -18,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
  * 5. Clear error (never queue HTML as a download)
  */
 object MediaGrabber {
+    private const val LOG_TAG = "VdrGrabber"
     const val UNSUPPORTED_SITE = "This site isn’t supported."
     const val PROMPT_TITLE = "Download this media?"
     const val FOUND_ON_PAGE_TITLE = "Found media on this page"
@@ -105,7 +107,11 @@ object MediaGrabber {
         val trimmed = url.trim()
         return try {
             val u = URI(trimmed.replace(" ", "%20"))
-            val path = (u.rawPath ?: "").substringBefore('#')
+            // Decoded, so ".../Content%2Fclip.mp4" and ".../Content/clip.mp4"
+            // -- the same file, which archive.org links both ways on one page
+            // -- canonicalise identically and dedupe into one row instead of
+            // two rows with the same name that a user cannot choose between.
+            val path = (u.path ?: u.rawPath ?: "").substringBefore('#')
             val scheme = (u.scheme ?: "https").lowercase()
             val host = (u.host ?: "").lowercase()
             val port = when {
@@ -348,8 +354,28 @@ object MediaGrabber {
                 }
                 PageProbeResult.DirectFile
             }
-        } catch (_: Exception) {
-            PageProbeResult.None
+        } catch (e: Exception) {
+            // Distinguish "we could not read the page" from "the page has no
+            // video". Collapsing both into None told the user "No video files
+            // found on this page" after a timeout or TLS failure -- a claim
+            // about the page's contents that we had never actually seen, and
+            // which sends them off blaming the site or the parser.
+            Log.w(LOG_TAG, "probe failed for $url", e)
+            PageProbeResult.Failed(fetchErrorMessage(e))
+        }
+    }
+
+    /** Short, honest reason a page could not be read. */
+    private fun fetchErrorMessage(e: Exception): String = when (e) {
+        is java.net.SocketTimeoutException ->
+            "Timed out loading that page. Check your connection and try again."
+        is java.net.UnknownHostException ->
+            "Couldn't reach that site. Check your connection and try again."
+        is javax.net.ssl.SSLException ->
+            "Secure connection to that site failed."
+        else -> {
+            val detail = e.message?.take(120)?.takeIf { it.isNotBlank() }
+            if (detail != null) "Couldn't load that page: $detail" else "Couldn't load that page."
         }
     }
 
@@ -380,6 +406,11 @@ object MediaGrabber {
 sealed class PageProbeResult {
     data class Media(val urls: List<String>) : PageProbeResult()
     data class Blocked(val message: String) : PageProbeResult()
+    /**
+     * The page could not be fetched at all. Distinct from [HtmlNoMedia]: we
+     * are reporting our own failure, not a fact about the page.
+     */
+    data class Failed(val message: String) : PageProbeResult()
     data object YoutubeOnly : PageProbeResult()
     data object HtmlNoMedia : PageProbeResult()
     /** Not HTML / looks like a real file — queue as-is. */
