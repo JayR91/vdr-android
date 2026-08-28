@@ -2,6 +2,7 @@ package com.jayr91.vdr.billing
 
 import android.app.Activity
 import android.content.Context
+import android.util.Log
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
@@ -31,6 +32,8 @@ import kotlin.coroutines.resume
 class BillingManager(
     context: Context,
 ) : PurchasesUpdatedListener {
+    private companion object { const val TAG = "VdrBilling" }
+
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -108,7 +111,9 @@ class BillingManager(
         }
         val offer = details.oneTimePurchaseOfferDetails
         if (offer == null) {
-            _lastError.value = "Pro product has no offer. Create ${ProGates.PRODUCT_ID} in Play Console."
+            // User-facing copy: someone reading this cannot create products.
+            Log.w(TAG, "${ProGates.PRODUCT_ID} has no oneTimePurchaseOfferDetails")
+            _lastError.value = "Pro isn't available to buy right now. Try again later."
             return false
         }
         val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
@@ -151,8 +156,13 @@ class BillingManager(
             val list = detailsList
             _productDetails.value = list.firstOrNull()
             if (list.isEmpty()) {
-                _lastError.value =
-                    "Pro product “${ProGates.PRODUCT_ID}” not found. Activate it in Play Console."
+                // Expected while the product is not yet activated, but the
+                // same path is hit if Play's catalogue is briefly unavailable
+                // in production -- and "activate it in Play Console" is an
+                // instruction only the developer can act on. Keep the
+                // diagnostic in logcat and tell the user something true.
+                Log.w(TAG, "${ProGates.PRODUCT_ID} not returned by queryProductDetails")
+                _lastError.value = "Pro isn't available to buy right now. Try again later."
             }
         }
     }

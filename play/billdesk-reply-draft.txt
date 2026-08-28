@@ -1,0 +1,24 @@
+Dear BillDesk Account Management Team,
+
+Re: Application ID 2608267849 — clarification on Mobile Application accessibility
+
+Thank you for your email dated 28 Aug 2026 regarding the mobile application verification.
+
+The VDR Android app (package name: com.jayr91.vdr) is registered on Google Play Console and is currently available via Google Play Internal testing (not yet published to Production/public listing). For this reason, the public Play Store details URL (https://play.google.com/store/apps/details?id=com.jayr91.vdr) returns 404 when accessed without a published Production release.
+
+Please find the following working links for verification:
+
+• Google Play Internal testing opt-in (live): https://play.google.com/apps/internaltest/4701575606071485981
+• Privacy policy (live): https://jayr91.github.io/vdr-android/privacy-policy.html
+• Project / source repository (live): https://github.com/JayR91/vdr-android
+• Website: https://jayr91.github.io/vdr-android/
+• Package name: com.jayr91.vdr
+• Current internal release: version 1.5.8 (versionCode 15), track Active
+
+We request that the Mobile App APK URL field be updated to the Internal testing opt-in link above, or that pre-launch/internal testing access be accepted for verification purposes. We are also preparing a Production release application on Google Play Console.
+
+Please advise if any additional information is required. We remain available to complete Video KYC during agent hours (Mon–Sat 09:30–18:00 IST).
+
+Best regards,
+Jayendar S
+Application ID: 2608267849

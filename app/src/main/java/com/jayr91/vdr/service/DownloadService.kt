@@ -24,6 +24,8 @@ import com.jayr91.vdr.R
 import com.jayr91.vdr.data.DownloadEntity
 import com.jayr91.vdr.data.VdrDatabase
 import com.jayr91.vdr.data.VdrSettings
+import com.jayr91.vdr.billing.ProEntitlement
+import com.jayr91.vdr.billing.ProGates
 import com.jayr91.vdr.engine.DirectUrl
 import com.jayr91.vdr.engine.DownloadStatus
 import com.jayr91.vdr.engine.DownloadTask
@@ -93,12 +95,23 @@ class DownloadService : Service() {
         when (intent?.action) {
             ACTION_ADD -> {
                 val raw = intent.getStringExtra(EXTRA_URL).orEmpty()
-                val segments = intent.getIntExtra(EXTRA_SEGMENTS, 8)
+                // Defaulting to 8 meant "caller forgot the extra" was
+                // indistinguishable from "caller is entitled to 8", and the
+                // fallback happened to be a Pro-tier value. Fail closed.
+                val segments = intent.getIntExtra(EXTRA_SEGMENTS, ProGates.FREE_MAX_SEGMENTS)
                 val schedule = intent.getLongExtra(EXTRA_SCHEDULE, -1L).takeIf { it > 0 }
                 val urls = DirectUrl.extractHttpUrls(raw).ifEmpty {
                     listOf(raw.trim()).filter { it.startsWith("http://") || it.startsWith("https://") }
                 }
-                urls.forEach { addUrl(it, segments, schedule) }
+                // Read the entitlement for this add rather than caching it: a
+                // cached flag starts false and would silently downgrade a Pro
+                // user who shares a link before DataStore has answered. addUrl
+                // does file I/O anyway, so it belongs off the main thread.
+                scope.launch {
+                    val pro = ProEntitlement.isPro(this@DownloadService)
+                    val allowed = ProGates.clampSegments(segments, pro)
+                    urls.forEach { addUrl(it, allowed, schedule) }
+                }
             }
             ACTION_PAUSE -> intent.getStringExtra(EXTRA_ID)?.let { queue.pause(it) }
             ACTION_RESUME -> intent.getStringExtra(EXTRA_ID)?.let { queue.resume(it) }
@@ -137,6 +150,7 @@ class DownloadService : Service() {
         return START_STICKY
     }
 
+    /** [segments] is already entitlement-clamped by the ACTION_ADD handler. */
     private fun addUrl(url: String, segments: Int, scheduledAt: Long?) {
         val pageError = DirectUrl.rejectionMessage(url)
         val name = Organizer.outputNameForUrl(url)

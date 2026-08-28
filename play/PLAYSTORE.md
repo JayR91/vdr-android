@@ -9,11 +9,13 @@ listing copy, privacy policy, and a signed App Bundle.
 **Privacy policy (live):** https://jayr91.github.io/vdr-android/privacy-policy.html  
 **Signed AAB:** `app/build/outputs/bundle/release/app-release.aab` (~12 MiB) · also `play/ready/app-release-1.5.8.aab`
 
-## Status dashboard (2026-08-26 ~20:50 IST)
+## Status dashboard (2026-08-28 ~13:55 IST)
 
 **Latest:** **16 (1.5.9)** built and signed locally, **not yet uploaded**. Supersedes Internal **15 (1.5.8)**, which is rolled out with track **Active** and email list `Internal testers` (`jayradbus@gmail.com`). BillDesk / `vdr_pro` / IAP **still deferred**. Chrome: keep **1 Play + 1 BillDesk** max.
 
 **1.5.9 is a correctness release** — it fixes bugs in 1.5.8 that produced wrong results rather than errors. See "What changed in 1.5.9" below.
+
+**Verified on device 2026-08-28** (realme RMX3312, Android 13 / API 33): clean launch, share-to-download end to end, 4-segment file byte-identical to upstream, Pro dialog handles the not-yet-activated product without crashing. Note API 33 cannot reproduce defect 8 (the `URLDecoder` crash), which only affects API 26–32.
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -24,11 +26,13 @@ listing copy, privacy policy, and a signed App Bundle.
 | Signed AAB 1.5.8 / vc15 | **DONE** | Uploaded to Internal; release published |
 | Review + fixes 1.5.9 | **DONE** | 10 defects fixed, 9 regression tests added; 38 unit tests green; lint clean |
 | Signed AAB 1.5.9 / vc16 | **BUILT, NOT UPLOADED** | `play/artifacts/vdr-1.5.9-vc16.aab`; needs `PLAY_JSON` to upload |
+| On-device smoke test | **DONE (2026-08-28)** | realme RMX3312, Android 13 / API 33. Launch, share-to-download, segmented reassembly (byte-identical), Pro dialog — all pass |
 | Store listing | **PARTIAL** | en-US + icon + feature graphic + screenshots; category/contact may still need dashboard steps |
 | Policy forms | **DONE** | Ads, Ad ID, Sign-in, IARC, Target audience, Data safety, Financial, Health saved |
 | Internal testing | **DONE (Active)** | **15 (1.5.8)** available; testers list selected |
 | Release warnings | **1 fixed / 2 soft** | Testers fixed. Deobfuscation + native symbols soft (see below) |
-| Production / public | **NOT LIVE** | Store URL 404 |
+| Production / public | **NOT LIVE** | Store URL **404**; Production locked — apply via Dashboard |
+| BillDesk clarification | **ACTION NEEDED** | Mobile app “not live” — update APK URL to internal-testing link |
 
 ### Internal release warnings (15 / 1.5.8)
 
@@ -99,6 +103,29 @@ testing did not surface them.
 Lint now reports zero errors on the release variant (24 warnings, all
 cosmetic: newer-dependency notices and launcher-icon shape).
 
+**Found by running it on a device (2026-08-28)**
+
+11. **Sharing a link bypassed the free segment cap.** `DownloadService`
+    defaulted `EXTRA_SEGMENTS` to **8** when the extra was absent, so "the
+    caller forgot to say" was indistinguishable from "the caller is entitled
+    to eight" — and the ambiguous case resolved to a Pro-tier number.
+    `MainActivity.handleShare()` was such a caller, so a free user sharing a
+    link got 8 segments while the in-app Add button correctly gave them 4.
+    Confirmed on device: same URL, same non-Pro phone, 8 segments before the
+    fix and 4 after.
+
+    The gate was only ever applied in `VdrApp.queueUrls()`, so any other route
+    into the service skipped it. It is now enforced in the service, where every
+    download converges, with the entitlement read per add rather than cached —
+    a cached flag starts `false` and would silently downgrade a Pro user who
+    shares a link before DataStore has answered.
+12. **A purchase error told users to go and fix Play Console.** "Pro product
+    `vdr_pro` not found. Activate it in Play Console." is an instruction only
+    the developer can act on, and the same code path runs if Play's catalogue
+    is briefly unavailable in production. Users now see "Pro isn't available
+    to buy right now. Try again later."; the diagnostic went to logcat under
+    tag `VdrBilling`.
+
 **Hardening**
 - Page scanning read only the first ~8 KiB of a page. okio's `read(sink, n)`
   fills one segment per call rather than reading up to `n`, so the 2 MiB cap
@@ -119,9 +146,36 @@ are personal business details rather than anything about the app.
 
 See `play/BILLDESK-PRIVATE.md`, which is gitignored and stays on your machine.
 
-**Status:** Video KYC still pending — human agents only, Mon–Sat 09:30–18:00
-IST. `vdr_pro` cannot be activated until it clears, so the Pro purchase flow
-is built and tested but not yet transactable.
+**Status (2026-08-28):** BillDesk sent a **clarification email** (Application
+`2608267849`, 28 Aug 1:17 PM IST from `onboarding@billdesk.com`):
+
+> *Clarification required for the Individual: Mobile Application(s) is not
+> live/does not exist/not accessible*
+
+**Root cause:** BillDesk verified the submitted Mobile App APK URL
+(`https://play.google.com/store/apps/details?id=com.jayr91.vdr`) and got **404**
+because the app is on **Internal testing only** — Production access not yet
+granted by Google Play (“You don't have access to production yet”).
+
+**Recommended fix (portal or email reply):**
+- **Mobile App APK URL** → Internal testing opt-in (live, 302 not 404):  
+  `https://play.google.com/apps/internaltest/4701575606071485981`
+- **Website URL** → keep `jayr91.github.io` or use  
+  `jayr91.github.io/vdr-android/privacy-policy.html` (200)
+- Supporting links: GitHub `https://github.com/JayR91/vdr-android` · package
+  `com.jayr91.vdr` · Internal release **15 (1.5.8)** Active
+
+**Action required (human):**
+1. Open BillDesk **Resume** link from the clarification email → OTP login →
+   update **Mobile App APK URL** to the internal-testing link above → re-submit.
+2. **Or** reply to `onboarding@billdesk.com` — draft at
+   `play/billdesk-reply-draft.txt`.
+3. Complete **Video KYC** (Mon–Sat 09:30–18:00 IST) — prior attempt 27 Aug was
+   unsuccessful per BillDesk email; do not skip.
+
+Video KYC still pending — human agents only. `vdr_pro` cannot be activated until
+BillDesk clears, so the Pro purchase flow is built and tested but not yet
+transactable.
 
 ## Monetization (freemium — not a paid download)
 
@@ -157,8 +211,9 @@ is built and tested but not yet transactable.
 - **Merchant accounts:** created but both show **Issue with account**  
   - Cross border `7695-7184-9564-3355`  
   - India only `8488-6695-2592-8969`
-- **BillDesk PA-CB:** Application `2608267849` — Website/APK + Business submitted. **Remaining:** Video KYC at `https://connect.billdesk.com/videoKyc` (or email link from `onboarding@billdesk.com`). Agents Mon–Sat 09:30–18:00 IST; need camera/location + original PAN (and address proof if uploaded).
-- **Website/APK values used:** Website URL `jayr91.github.io` · APP Name `VDR` · Mobile App APK URL `https://play.google.com/store/apps/details?id=com.jayr91.vdr`
+- **BillDesk PA-CB:** Application `2608267849` — Website/APK + Business submitted. **28 Aug clarification:** mobile app URL not accessible (404). **Remaining:** (1) re-submit with internal-testing APK URL, (2) Video KYC at `https://connect.billdesk.com/videoKyc` (prior attempt 27 Aug unsuccessful). Agents Mon–Sat 09:30–18:00 IST.
+- **Website/APK values submitted:** Website URL `jayr91.github.io` · APP Name `VDR` · Mobile App APK URL `https://play.google.com/store/apps/details?id=com.jayr91.vdr` (**404** — rejected by BillDesk).
+- **Website/APK values to re-submit:** Website URL `jayr91.github.io` · APP Name `VDR` · Mobile App APK URL `https://play.google.com/apps/internaltest/4701575606071485981`
 - **One-time products / `vdr_pro`:** still blocked — do **not** create until merchant “Issue with account” clears.
 - After Video KYC approval → create/activate `vdr_pro` at ₹1 → upload **1.5.8** AAB. Free listing/Internal work can proceed without IAP.
 
