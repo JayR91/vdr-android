@@ -1,9 +1,26 @@
 #!/usr/bin/env bash
-# Upload VDR AAB to Internal testing via Google Play Developer API.
+# Upload a VDR AAB to a Google Play track via the Play Developer API.
 # Requires a Play Console service account JSON with Android Publisher access.
+# Never commit the JSON.
+#
 # Usage:
 #   PLAY_JSON=/path/to/api-key.json ./play/upload-internal.sh
-# Never commit the JSON.
+#
+# TRACK selects the destination (default: internal). The API's track names are
+# not the Console's labels, and the difference matters here:
+#
+#   internal    Internal testing  - does NOT count toward production access
+#   alpha       Closed testing    - the 12-testers/14-days requirement is
+#                                   measured on this one
+#   beta        Open testing
+#   production  Production
+#
+# To start the closed test that unlocks production access:
+#   PLAY_JSON=/path/to/api-key.json TRACK=alpha \
+#     AAB=play/artifacts/vdr-1.5.9-vc16.aab ./play/upload-internal.sh
+#
+# One-time dependency install:
+#   pip3 install google-api-python-client google-auth
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
