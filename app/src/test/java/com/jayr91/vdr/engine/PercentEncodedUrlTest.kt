@@ -54,6 +54,29 @@ class PercentEncodedUrlTest {
         assertEquals("my clip.mp4", Organizer.filenameFromUrl("https://x.example/a/my%20clip.mp4"))
     }
 
+    /**
+     * The picker and the organiser must agree on what a video is.
+     *
+     * ".ogv" was in MediaGrabber's video set but missing from Organizer's
+     * Videos category, so archive.org's Ogg copy was listed under
+     * "3 videos on page" and then saved to Downloads/VDR/Other -- the app
+     * contradicting itself between one screen and the next.
+     */
+    @Test
+    fun everyScannerVideoExtensionFilesAsVideo() {
+        val wrong = MediaGrabber.videoExtensions.filter { ext ->
+            Organizer.categoryFor("clip.$ext") != "Videos"
+        }
+        assertTrue("filed outside Videos: $wrong", wrong.isEmpty())
+    }
+
+    @Test
+    fun oggAudioStillFilesAsAudio() {
+        // .ogg is the audio-only container and must not follow .ogv.
+        assertEquals("Audio", Organizer.categoryFor("track.ogg"))
+        assertEquals("Videos", Organizer.categoryFor("clip.ogv"))
+    }
+
     @Test
     fun queryAndFragmentAreNotPartOfTheName() {
         assertEquals("clip.mp4", Organizer.filenameFromUrl("https://x.example/v/clip.mp4#t=10"))

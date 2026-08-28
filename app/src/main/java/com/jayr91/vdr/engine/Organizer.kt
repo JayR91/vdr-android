@@ -2,8 +2,14 @@ package com.jayr91.vdr.engine
 
 object Organizer {
     private val categories = mapOf(
+        // Keep in step with MediaGrabber.videoExtensions: anything the page
+        // scanner offers as a video has to file as one. ".ogv" was in that
+        // list but not this one, so archive.org's Ogg copies were listed
+        // under "3 videos on page" and then saved to Downloads/VDR/Other --
+        // the app contradicting itself between one screen and the next.
+        // ".ogg" stays under Audio: it is the audio-only container.
         "Videos" to setOf(
-            ".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".mpg", ".mpeg", ".ts", ".m4s",
+            ".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".mpg", ".mpeg", ".ts", ".m4s", ".ogv",
         ),
         "Documents" to setOf(
             ".pdf", ".doc", ".docx", ".txt", ".rtf", ".xls", ".xlsx", ".ppt", ".pptx", ".csv", ".epub",

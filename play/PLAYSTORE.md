@@ -220,6 +220,32 @@ globe icon → 3 videos listed (.mp4/.ogv/.avi) → pick one → Download →
 `Downloads/VDR/Videos/big_buck_bunny_720p_surround.mp4`, 61,878,609 bytes,
 **byte-identical to upstream** (SHA-256 match) over a 4-segment download.
 
+**Scan page made usable in the free release (2026-08-28)**
+
+17. **The gate helpers were dead code.** `ProGates.canScanPage` and
+    `canUseFocusGuard` were defined and unit-tested but **never called** —
+    the real gating was four separate raw `isPro` checks in `VdrApp` (open,
+    the external-browse entry, the eject-on-entitlement-loss effect, and the
+    render condition). Policy therefore could not be changed in one place,
+    and missing any one of them yields a screen you can open and are then
+    thrown out of, or one that renders blank. All four now route through
+    `ProGates.canScanPage`.
+18. **Scan page ships free at launch.** Gating it behind a product that
+    cannot be sold until BillDesk clears would make the globe icon a dead
+    control for every user on day one. `ProGates.SCAN_PAGE_IS_FREE` is a
+    single documented switch; flip it to re-gate. The purchase dialog's perk
+    list is generated from the flags, so it no longer offers to sell a
+    feature the user already has.
+19. **`.ogv` was listed as a video and then filed as "Other".**
+    `MediaGrabber.videoExtensions` included it; `Organizer`'s Videos category
+    did not. Archive.org's Ogg copy appeared under "3 videos on page" and
+    saved to `Downloads/VDR/Other` — the app contradicting itself between one
+    screen and the next. A test now holds the two lists in agreement.
+
+Verified on the **release** build with no Pro: globe → 3 videos → select the
+`.ogv` (not the default row) → Download → `Downloads/VDR/Videos/`,
+46,935,223 bytes, byte-identical to upstream, 4 segments (free cap holding).
+
 **Hardening**
 - Page scanning read only the first ~8 KiB of a page. okio's `read(sink, n)`
   fills one segment per call rather than reading up to `n`, so the 2 MiB cap

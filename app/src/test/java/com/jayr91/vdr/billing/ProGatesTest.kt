@@ -17,9 +17,31 @@ class ProGatesTest {
         assertFalse(ProGates.segmentsNeedPro(4))
     }
 
+    /**
+     * Page media scan ships free in the launch release, because gating it
+     * behind a product that cannot yet be sold would make the globe icon a
+     * dead control for every user.
+     *
+     * The gate has to answer the same way for free and Pro users while the
+     * flag is on: four separate places in VdrApp consult it (open, the
+     * external-browse entry, the eject-on-loss effect, and the render
+     * condition), and if any of them disagreed you would get a screen that
+     * opens and immediately throws you out, or one that renders blank.
+     */
     @Test
-    fun pageScanIsPro() {
-        assertFalse(ProGates.canScanPage(false))
+    fun pageScanIsFreeWhileFlagIsSet() {
+        if (ProGates.SCAN_PAGE_IS_FREE) {
+            assertTrue("free users must reach Scan page", ProGates.canScanPage(false))
+            assertTrue(ProGates.canScanPage(true))
+        } else {
+            assertFalse(ProGates.canScanPage(false))
+            assertTrue(ProGates.canScanPage(true))
+        }
+    }
+
+    @Test
+    fun proAlwaysReachesScanPage() {
+        // True whichever way the flag is set.
         assertTrue(ProGates.canScanPage(true))
     }
 

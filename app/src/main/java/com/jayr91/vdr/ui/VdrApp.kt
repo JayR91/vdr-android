@@ -137,8 +137,19 @@ fun VdrApp(
         return false
     }
 
+    // Whether the page-media screen may be opened at all. ProGates owns this
+    // decision; the four places below used to test isPro directly, so the
+    // helper existed, was unit-tested, and was never actually consulted --
+    // which is precisely why changing the policy could not be done in one
+    // place. Missing any one of them yields a screen you can open and are
+    // then thrown out of, or one that renders blank.
+    val canScan = ProGates.canScanPage(isPro)
+
     fun openPageMediaScreen(seed: String? = null) {
-        if (!requireProOrUpgrade()) return
+        if (!canScan) {
+            showProUpgrade = true
+            return
+        }
         showFabChooser = false
         showAdd = false
         clipboardPrompt = null
@@ -201,7 +212,7 @@ fun VdrApp(
         // Page Media from outside the app never arrived.
         if (openBrowse && proKnown) {
             onBrowseConsumed()
-            if (isPro) {
+            if (canScan) {
                 if (initialBrowseUrl != null) pageMediaSeed = initialBrowseUrl
                 pageMediaSession++
                 screen = VdrScreen.PageMedia
@@ -217,13 +228,13 @@ fun VdrApp(
     // PageMedia while the entitlement is still loading; acting on the
     // not-yet-known value greeted returning Pro users with an upsell.
     LaunchedEffect(proState, screen) {
-        if (proKnown && !isPro && screen == VdrScreen.PageMedia) {
+        if (proKnown && !canScan && screen == VdrScreen.PageMedia) {
             screen = VdrScreen.Home
             showProUpgrade = true
         }
     }
 
-    if (screen == VdrScreen.PageMedia && isPro) {
+    if (screen == VdrScreen.PageMedia && canScan) {
         BackHandler { screen = VdrScreen.Home }
         key(pageMediaSession) {
             PageMediaScreen(
@@ -279,7 +290,11 @@ fun VdrApp(
                 },
                 actions = {
                     IconButton(onClick = { openPageMediaScreen() }) {
-                        Icon(Icons.Default.Language, contentDescription = "Scan page for video (Pro)")
+                        Icon(
+                            Icons.Default.Language,
+                            contentDescription =
+                                if (canScan) "Scan page for video" else "Scan page for video (Pro)",
+                        )
                     }
                     IconButton(onClick = { pasteFromClipboard() }) {
                         Icon(Icons.Default.ContentPaste, contentDescription = "Add from clipboard")

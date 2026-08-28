@@ -41,7 +41,8 @@ object MediaGrabber {
     /** Same URL: do not re-prompt until this long after dismiss (keeps spam down). */
     const val DISMISS_COOLDOWN_MS = 15 * 60 * 1000L
 
-    private val videoExtensions = setOf(
+    /** Internal so Organizer's category table can be tested against it. */
+    internal val videoExtensions = setOf(
         "mp4", "webm", "mkv", "mov", "m4v", "avi", "ogv", "ts",
     )
 

@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.jayr91.vdr.billing.BillingManager
 import com.jayr91.vdr.billing.ProEntitlement
+import com.jayr91.vdr.billing.ProGates
 
 private fun android.content.Context.isDebuggableApp(): Boolean =
     (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
@@ -76,13 +77,25 @@ fun ProUpgradeDialog(
         text = {
             Column {
                 Text(
-                    if (purchasable) {
-                        "Pro unlocks page media scan, multi-URL batch queue, more download segments, " +
-                            "and Focus Guard. One-time purchase — restore anytime on this Google account."
-                    } else {
-                        "Page media scan, multi-URL batch queue, more download segments and Focus Guard " +
-                            "will arrive as a one-time Pro purchase. They are not on sale yet — everything " +
-                            "else in VDR is free and stays that way."
+                    // Do not list a feature as Pro while it is shipping free;
+                    // page media scan is free for the launch release (see
+                    // ProGates.SCAN_PAGE_IS_FREE) and naming it here would be
+                    // selling something the user already has.
+                    buildString {
+                        val perks = buildList {
+                            if (!ProGates.SCAN_PAGE_IS_FREE) add("page media scan")
+                            add("multi-URL batch queue")
+                            add("more download segments")
+                            add("Focus Guard")
+                        }.joinToString(", ")
+                        if (purchasable) {
+                            append("Pro unlocks $perks. ")
+                            append("One-time purchase — restore anytime on this Google account.")
+                        } else {
+                            append(perks.replaceFirstChar { it.uppercase() })
+                            append(" will arrive as a one-time Pro purchase. They are not on sale ")
+                            append("yet — everything else in VDR is free and stays that way.")
+                        }
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
