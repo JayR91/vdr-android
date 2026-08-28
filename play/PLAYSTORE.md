@@ -36,7 +36,7 @@ listing copy, privacy policy, and a signed App Bundle.
 | Store settings | **DONE** | Category **Tools**; contact email **jayradbus@gmail.com**; phone/website left blank |
 | Policy forms | **DONE** | Ads, Ad ID, Sign-in, IARC, Target audience, Data safety, Financial, Health saved |
 | Internal testing | **DONE (Active)** | **15 (1.5.8)** available to internal testers (Aug 26); not reviewed |
-| Closed testing | **NOT STARTED** | **0 testers opted-in**; locked until store setup complete |
+| Closed testing | **READY TO RESUME** | The awaited new release exists: **1.5.9 / vc16**, reviewed and device-verified. Upload `play/artifacts/vdr-1.5.9-vc16.aab` to **Closed testing** (API track `alpha`, *not* `internal`). See `play/HANDOFF-CLOSED-TESTING.md`. |
 | Release warnings | **1 fixed / 2 soft** | Testers fixed. Deobfuscation + native symbols soft (see below) |
 | Production / public | **LOCKED** | Store URL **404**; need **12 testers × 14 days** closed test → Apply for production → rollout |
 | BillDesk Mobile App URL | **BLOCKED** | Public URL 404; internal-test URL **also rejected** by BillDesk portal |
@@ -56,7 +56,8 @@ Privacy policy: https://jayr91.github.io/vdr-android/privacy-policy.html      �
 - App status: **Draft** · Internal testing **Active** · release **15 (1.5.8)** (Aug 26, not reviewed)
 - **Store settings:** Category **Tools** · email **jayradbus@gmail.com** ✓
 - **Store listing (en-US):** 6× 10-inch tablet screenshots from `play/screenshots/tablet-10/` ✓ · Saved · queued in Publishing overview
-- **Closed testing:** 0 testers opted-in; next steps: select countries → testers → create closed release → 12 testers × 14 days
+- **Closed testing:** paused 28 Aug ~18:30 IST pending a newer build; **that build now exists**. Use **1.5.9 / vc16**, not 1.5.8. Full instructions, including the file path and why the track must be `alpha`, are in `play/HANDOFF-CLOSED-TESTING.md`. Then: countries → testers → closed release → 12 testers × 14 days.
+  - The AAB is **gitignored and cannot be fetched from GitHub**, and the signing key is local to this Mac, so it cannot be rebuilt elsewhere. Read `play/artifacts/vdr-1.5.9-vc16.aab` from this machine.
 - **Production:** locked — personal accounts created after Nov 2023 must:
   1. Publish a **closed testing** release (Internal track does **not** count)
   2. Have **≥ 12 testers** continuously opted-in for **14 consecutive days**
