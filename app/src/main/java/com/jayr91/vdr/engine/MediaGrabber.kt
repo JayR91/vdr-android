@@ -275,12 +275,57 @@ object MediaGrabber {
             else -> emptyList()
         }
 
+
+    /** `…_360p.mp4`, `…-1080P.mkv` — the resolution a filename advertises. */
+    private val heightFromLabel = Regex("""(?i)(?:^|[^0-9])(\d{3,4})p(?:[^0-9]|${'$'})""")
+
+    /** `…_1280x720.mp4` — the other common way filenames state it. */
+    private val heightFromDimensions = Regex("""(?i)(?:^|[^0-9])\d{3,4}x(\d{3,4})(?:[^0-9]|${'$'})""")
+
+    /**
+     * Quality a URL advertises, or [ASSUMED_HEIGHT] when it says nothing.
+     *
+     * Only the filename is consulted, so this is a hint rather than a
+     * measurement -- but a file that calls itself 360p is telling the truth
+     * far more often than not, and that is the case worth acting on.
+     */
+    internal fun advertisedHeight(url: String): Int {
+        val name = displayName(url).lowercase()
+        heightFromLabel.find(name)?.groupValues?.get(1)?.toIntOrNull()?.let { return it }
+        heightFromDimensions.find(name)?.groupValues?.get(1)?.toIntOrNull()?.let { return it }
+        return ASSUMED_HEIGHT
+    }
+
+    /**
+     * What an unlabelled file, or a manifest, is assumed to offer.
+     *
+     * A manifest carries a whole ladder and its top rung is usually the best
+     * the site has, so it is credited the same as an unlabelled progressive
+     * file. That keeps this comparison to the one question it can actually
+     * answer: is something *explicitly* worse than the alternatives?
+     */
+    internal const val ASSUMED_HEIGHT = 1080
+
+    internal fun isStreamManifest(url: String): Boolean {
+        val name = displayName(url).lowercase()
+        return name.endsWith(".m3u8") || name.endsWith(".mpd") ||
+            DirectUrl.looksLikeHlsUrl(url) || DirectUrl.looksLikeDashUrl(url)
+    }
+
     fun preferMediaOrder(urls: List<String>): List<String> =
         urls.distinctBy { canonicalize(it) }.sortedWith(
-            compareBy<String> { url ->
-                val name = displayName(url).lowercase()
-                preferredExtOrder.indexOfFirst { name.endsWith(it) }.let { if (it < 0) 99 else it }
-            }.thenBy { url ->
+            // Resolution outranks container. Ordering by extension alone meant a
+            // progressive .mp4 always beat an .m3u8, so a page offering a 360p
+            // MP4 beside a 1080p HLS ladder handed over the 360p -- the download
+            // succeeded and the file was simply the worst one on offer.
+            compareByDescending<String> { advertisedHeight(it) }
+                // Equal quality: take the plain file. One request and no remux
+                // beats fetching and stitching segments for the same picture.
+                .thenBy { if (isStreamManifest(it)) 1 else 0 }
+                .thenBy { url ->
+                    val name = displayName(url).lowercase()
+                    preferredExtOrder.indexOfFirst { name.endsWith(it) }.let { if (it < 0) 99 else it }
+                }.thenBy { url ->
                 val u = url.lowercase()
                 val name = displayName(url).lowercase()
                 when {
