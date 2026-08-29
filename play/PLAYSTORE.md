@@ -116,8 +116,29 @@ no symbols in them to extract and nothing this project can package. Neither
 library is removable — DataStore backs the Pro entitlement and settings, and
 graphics-path arrives with Compose.
 
-The warning is informational and does not block a release. It will persist on
-every upload until AndroidX ships unstripped binaries.
+**Correction (same day):** it can be cleared, just not by the build. The
+libraries have no `.symtab` or `.debug_*`, but they *do* keep `.dynsym` --
+their exported function names. Play accepts a manually supplied symbols zip,
+and `.dynsym` is enough both to satisfy the check and to give partial
+symbolication: a crash inside either library shows function names rather than
+bare addresses.
+
+`scripts/make-native-symbols.sh` builds it from any AAB (verified: it
+reproduces the zip that shipped with vc20, same 8 libraries, same sizes). The layout Play wants
+is one directory per ABI at the zip root:
+
+```
+arm64-v8a/libandroidx.graphics.path.so
+arm64-v8a/libdatastore_shared_counter.so
+armeabi-v7a/... x86/... x86_64/...
+```
+
+Attach it in Play Console via the bundle row's **⋮ -> Upload native debug
+symbols**. It binds to the existing bundle, so the AAB does not need
+re-uploading and this can be done after the release is created.
+
+Not verified end to end -- no Console access from here. If Play rejects the
+zip the warning is harmless: it is informational and blocks nothing.
 
 ### Verified on device for vc20 (R8 build, realme RMX3312 / Android 13)
 
