@@ -7,14 +7,15 @@ plugins {
 
 android {
     namespace = "com.jayr91.vdr"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.jayr91.vdr"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 16
-        versionName = "1.5.9"
+        // Google Play requires API 36 for new submissions from 31 Aug 2026.
+        targetSdk = 36
+        versionCode = 20
+        versionName = "1.6.2"
         vectorDrawables.useSupportLibrary = true
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // No abiFilters: with FFmpeg gone the app ships no native libraries at
@@ -44,11 +45,35 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 on, so the build emits mapping.txt. Play flags its absence as
+            // "no deobfuscation file": without it, any crash or ANR report from
+            // a user arrives as unreadable stack frames. AGP places the mapping
+            // inside the bundle automatically, so uploading it is not a separate
+            // step.
+            //
+            // Safe to turn on here: nothing in this app resolves types by name.
+            // There is no Gson/Moshi/kotlinx-serialization -- the sidecar JSON is
+            // written by hand through org.json with literal keys -- and no
+            // Class.forName or reflective field access anywhere. Room and Compose
+            // ship their own consumer rules.
+            isMinifyEnabled = true
+            // Deliberately NOT shrinking resources. It buys a little size and
+            // risks stripping anything referenced indirectly; the warning being
+            // fixed here is about the mapping file, not about size.
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // The bundle carries two small prebuilt AndroidX .so files
+            // (graphics.path and datastore_shared_counter). Play asks for their
+            // symbols so native crashes symbolicate; without this it reports
+            // "no native debug symbols". FULL rather than SYMBOL_TABLE because
+            // the libraries total well under 100 KB, so the extra size is
+            // irrelevant and full frames are more useful.
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
             if (keystoreProps.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }

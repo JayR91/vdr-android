@@ -76,6 +76,64 @@ Live form (saved; Save disabled):
 
 Did **not** re-save. Publishing overview already lists `App content: 'Foreground services' declaration updated` inside the in-review package — that package still has the wrong type + 404 URL.
 
+### The two upload warnings — one fixed, one not fixable here (29 Aug, vc20)
+
+**1. "No deobfuscation file" — FIXED.**
+`isMinifyEnabled` was false, so no `mapping.txt` existed. R8 is now on for
+release and AGP puts the mapping inside the bundle itself
+(`BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map`, ~29 MB),
+so there is no separate upload step. Without it, crash and ANR reports from
+real users arrive as unreadable frames.
+
+Turning R8 on was safe to do here specifically because nothing in this app
+resolves types by name: no Gson/Moshi/kotlinx-serialization (the sidecar JSON
+is hand-written through `org.json` with literal keys), and no `Class.forName`
+or reflective field access. Room and Compose ship their own consumer rules.
+`app/proguard-rules.pro` keeps only the genuine edges — `MainActivity` and
+`DownloadService`, whose names travel in the manifest and in PendingIntents;
+`data.**` for Room's generated lookup; and enum `valueOf`, since
+`DownloadStatus` comes back from persisted state by name.
+
+Resource shrinking was deliberately left **off**. It saves a little size and
+risks stripping anything referenced indirectly, and the warning was about the
+mapping file, not size.
+
+Side effect worth knowing: the bundle went from **11.60 MB to 3.97 MB**.
+
+**2. "No native debug symbols" — cannot be fixed from this project.**
+`ndk { debugSymbolLevel = "FULL" }` is set, and
+`extractReleaseNativeDebugMetadata` runs — and produces **zero files**. The
+reason is that the only native code in the bundle is two small prebuilt
+AndroidX libraries:
+
+| library | source | state |
+| --- | --- | --- |
+| `libandroidx.graphics.path.so` | `androidx.graphics:graphics-path` (via Compose) | `stripped` |
+| `libdatastore_shared_counter.so` | `androidx.datastore:datastore-preferences` | `stripped` |
+
+`file` reports both as **stripped**. Google ships them that way, so there are
+no symbols in them to extract and nothing this project can package. Neither
+library is removable — DataStore backs the Pro entitlement and settings, and
+graphics-path arrives with Compose.
+
+The warning is informational and does not block a release. It will persist on
+every upload until AndroidX ships unstripped binaries.
+
+### Verified on device for vc20 (R8 build, realme RMX3312 / Android 13)
+
+R8 is the risky half of this change, so it was exercised rather than assumed:
+
+| Check | Result |
+| --- | --- |
+| Launch | No crash, no `ClassNotFoundException` / `NoSuchMethodError` |
+| Share a link -> download | `sample-10s.mp4`, 5,485,935 bytes |
+| Room across a force-stop | Download history intact, with URLs, paths, segment counts |
+| DataStore across a force-stop | Toggled Wi-Fi-only survived the restart |
+| mapping.txt usability | 171 VDR entries; kept classes unrenamed, inner classes obfuscated |
+
+Tested via the release **APK**, which carries the same R8 output as the bundle.
+The AAB itself was not installed through bundletool.
+
 ### FGS demo video — PUBLISHED (29 Aug)
 
 `https://jayr91.github.io/vdr-android/fg-service-demo.mp4` now returns **HTTP 200**
