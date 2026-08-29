@@ -76,6 +76,25 @@ Live form (saved; Save disabled):
 
 Did **not** re-save. Publishing overview already lists `App content: 'Foreground services' declaration updated` inside the in-review package — that package still has the wrong type + 404 URL.
 
+### FGS demo video — PUBLISHED (29 Aug)
+
+`https://jayr91.github.io/vdr-android/fg-service-demo.mp4` now returns **HTTP 200**
+(`video/mp4`, 732,367 bytes, 81 s, 486x1080), byte-identical to
+`docs/fg-service-demo.mp4`.
+
+The video was recorded and committed earlier but **never pushed** — that was the
+entire reason the URL 404'd. GitHub Pages serves from the remote, so a local
+commit is invisible to it. Pushing `a9bee77` fixed it; nothing about the video
+itself was wrong.
+
+It shows the notification shade continuously while `sample-30s.mp4` downloads,
+progress advancing 0 → 5 → 17 → 30 → 44 → 57 → 70 → 84 → 96 %, with the VDR
+foreground-service notification and its Pause / Cancel actions visible
+throughout — which is what the declaration form is asking to see.
+
+**The Save button on the FGS declaration should now enable.** The declared type
+(`dataSync`) is already correct.
+
 ### Demo video — not published
 
 Phone was unlocked. Three real-device recording attempts failed to capture an expanded FGS progress notification good enough to send to Google:
