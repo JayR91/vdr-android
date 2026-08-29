@@ -76,6 +76,44 @@ Live form (saved; Save disabled):
 
 Did **not** re-save. Publishing overview already lists `App content: 'Foreground services' declaration updated` inside the in-review package — that package still has the wrong type + 404 URL.
 
+### Submitted for review — vc20 / 1.6.2 (29 Aug)
+
+Uploaded and **submitted**. Nothing further to do from this repo until Google
+responds.
+
+What went in:
+
+| | |
+| --- | --- |
+| Bundle | `vdr-1.6.2-vc20.aab`, 3.97 MB (was 11.60 MB before R8) |
+| Deobfuscation | embedded in the bundle — that warning should be gone |
+| Native symbols | uploaded separately from `.dynsym`; see the correction above |
+| FGS declaration | `dataSync`, demo video now serving HTTP 200 |
+
+**What to watch for.** The foreground-service declaration is the part most
+likely to come back with questions, because it is reviewed by a human against
+the demo video. The video shows `sample-30s.mp4` downloading with progress
+running 0 → 96 % and the Pause / Cancel actions visible throughout, which is
+the use case being declared. If it is rejected, the usual reasons are the video
+not showing the *user action* that starts the service, or the declared type not
+matching observed behaviour — the type here is `dataSync`, and downloading a
+file the user asked for is squarely that.
+
+**The production clock has not started.** This is a closed-testing release.
+Production needs ≥ 12 testers opted in for 14 consecutive days, and the count
+is of testers who actually opt in and install, not invitations sent. Dropping
+below 12 restarts it. Earliest realistic public listing is roughly three weeks
+from the day the twelfth tester opts in.
+
+**Still unverified: API 26–32.** vc19 fixed a `URLDecoder` crash that only
+affects those versions, and everything on hand runs API 33. Worth steering
+tester recruitment so at least a couple are on Android 8–12, otherwise that
+fix ships untested to the versions it was written for.
+
+**`vdr_pro` stays inactive** until BillDesk Video KYC clears. The app hides the
+purchase UI while no product exists and restores it by itself once one does, so
+no new build is needed at that point.
+
 ### The two upload warnings — one fixed, one not fixable here (29 Aug, vc20)
 
 **1. "No deobfuscation file" — FIXED.**
