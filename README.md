@@ -9,6 +9,10 @@ YouTube/stream extraction from the desktop app is **not** included. Google Play
 rejects apps that download videos from streaming sites in violation of those
 sites’ terms. Direct `http`/`https` file URLs still download.
 
+This repo is the **Android** app. Installing it does not put VDR on Windows.
+The Windows desktop build is a separate project — download
+`VDR-<version>-Windows-Setup.exe` from [VDR releases](https://github.com/JayR91/VDR/releases).
+
 ## Features (from the GitHub project)
 
 - Up to 32 parallel byte-range segments
@@ -24,13 +28,22 @@ sites’ terms. Direct `http`/`https` file URLs still download.
 
 ## Build
 
-Install Android Studio (or JDK 17 + Android SDK), then:
+Install Android Studio (or JDK 17 + Android SDK). On Windows, set `JAVA_HOME`
+to that JDK (Android Studio’s bundled JBR is fine). Then:
+
+macOS / Linux:
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-Release bundle for Play Console:
+Windows (cmd or PowerShell):
+
+```bat
+gradlew.bat assembleDebug
+```
+
+Release bundle for Play Console (`./gradlew` or `gradlew.bat`):
 
 ```bash
 ./gradlew bundleRelease
