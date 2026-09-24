@@ -1,3 +1,5 @@
+> **Superseded for the next upload.** Closed Alpha now wants **1.6.4 / versionCode 22**. Follow `play/HANDOFF-CLOSED-ALPHA-1.6.4.md`. Do not upload 1.5.9, and do not use the Production track.
+
 # Handoff: upload 1.5.9 (vc16) to **Closed testing**
 
 Written 2026-08-28 for whoever drives Play Console (Grok has access; Claude

@@ -14,8 +14,8 @@ android {
         minSdk = 26
         // Google Play requires API 36 for new submissions from 31 Aug 2026.
         targetSdk = 36
-        versionCode = 20
-        versionName = "1.6.2"
+        versionCode = 22
+        versionName = "1.6.4"
         vectorDrawables.useSupportLibrary = true
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // No abiFilters: with FFmpeg gone the app ships no native libraries at

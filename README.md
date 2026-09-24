@@ -38,6 +38,8 @@ Release bundle for Play Console:
 
 The `.aab` lands in `app/build/outputs/bundle/release/`.
 
+Closed Alpha **1.6.4** (`versionCode` 22) is the next upload. Notes and the exact command are in `play/HANDOFF-CLOSED-ALPHA-1.6.4.md`. Upload that bundle to **Closed testing** only.
+
 **APK size:** ~17 MiB debug, all ABIs included. Remuxing uses the platform's
 `MediaExtractor`/`MediaMuxer` rather than a bundled FFmpeg, so the app ships no
 third-party native libraries. An earlier build that bundled `ffmpeg-kit-min` for
