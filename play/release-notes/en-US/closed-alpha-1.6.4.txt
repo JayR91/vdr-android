@@ -1,0 +1,1 @@
+This closed-test build acts on tester feedback. It is a stability and polish update, with the same features as the build you already have. Install it from Closed testing and keep using VDR. Tell us if a download, pause, or resume still feels wrong.

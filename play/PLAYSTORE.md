@@ -3,11 +3,19 @@
 Play Console requires your Google account. This repo can only prepare the
 listing copy, privacy policy, and a signed App Bundle.
 
-**App:** `com.jayr91.vdr` · **Version:** 1.6.3 (`versionCode` 21) — local fix, not uploaded  
+**App:** `com.jayr91.vdr` · **Version:** 1.6.4 (`versionCode` 22) — Closed Alpha only  
 **Category:** Tools · **Price:** Free (optional one-time Pro IAP) · **Default language:** English (United States)  
 **Play Console app:** developer `5667084395209045347` · app `4975586487357388428`  
 **Privacy policy (live):** https://jayr91.github.io/vdr-android/privacy-policy.html  
-**Signed AAB:** `play/artifacts/vdr-1.6.3-vc21.aab` (and `~/Desktop/vdr-1.6.3-vc21.aab`). Closed testing still holds **20 (1.6.2)** until the user uploads 21.
+**Next upload:** Closed testing (`alpha`) only. Build and paste notes from `play/HANDOFF-CLOSED-ALPHA-1.6.4.md`. Do not upload to Production.
+
+## Closed Alpha 1.6.4 (2026-09-24)
+
+Play declined production access on 2026-09-24. Closed testing continues for another 14 days. The next Console upload is **1.6.4 / versionCode 22**, a stability-and-polish closed-test build that acts on tester feedback.
+
+`app/build.gradle.kts` is the version source of truth (`defaultConfig.versionCode` / `versionName`). The manifest does not set either field. Before this bump the committed Gradle values were **20 / 1.6.2**. The 1.6.3 / versionCode 21 billing-library build described later in this file was a local note and was never committed. 22 skips that code so it cannot collide with a local 21 bundle.
+
+Signing config, `applicationId`, and package name are unchanged. No signed AAB is in git (`*.aab` is ignored, and the upload keystore is not in this repo).
 
 ## Status dashboard (2026-08-29 ~16:20 IST) — Play emails, quoted
 
@@ -1098,13 +1106,18 @@ Keep **only English (United States)**. Remove empty locales / en-GB stubs.
 - **10-inch tablet screenshots:** `play/screenshots/tablet-10/` — **uploaded to Play Console (6/8)** 28 Aug
 - **Phone screenshots:** capture/upload if Console still requires them
 
+## versionCode ledger (2026-09-24)
+
+- **22 (1.6.4) is the Closed Alpha upload.** Source of truth: `app/build.gradle.kts`. Release notes: `play/release-notes/en-US/closed-alpha-1.6.4.txt`. Handoff: `play/HANDOFF-CLOSED-ALPHA-1.6.4.md`. Track: Closed testing (`alpha`) only. Not Production.
+- **21 (1.6.3)** was described below as a local billing-library fix and was **not committed**. Do not reuse versionCode 21.
+
 ## versionCode ledger (2026-08-29 afternoon)
 
-- **21 (1.6.3) is the uploadable fix** for the 29 Aug Play emails (Billing Library 8.0.0 + target API 36). Not on Play yet.
+- **21 (1.6.3) is the uploadable fix** for the 29 Aug Play emails (Billing Library 8.0.0 + target API 36). Not on Play yet. The Gradle change for that fix was never committed; the 2026-09-24 closed-test bump above supersedes it with versionCode 22.
   - `play/artifacts/vdr-1.6.3-vc21.aab`
   - `~/Desktop/vdr-1.6.3-vc21.aab`
   - Symbols: `play/artifacts/vdr-1.6.3-vc21-native-debug-symbols.zip` (and Desktop copy)
   - Verified from the AAB: `versionCode=21`, `versionName=1.6.3`, `compileSdkVersion=36`, `billing.properties` `8.0.0`, merged `uses-sdk` target 36.
 - **20 (1.6.2)** is what Closed testing currently holds. Consumed. Has billing **7.1.1** — that is the flagged binary.
 - **17 is consumed.** 18/19 are local spares only.
-- Next rebuild after 21 is uploaded must use **22 or higher**.
+- Next rebuild after 21 is uploaded must use **22 or higher**. That rebuild is the 2026-09-24 Closed Alpha bump (versionCode 22).
