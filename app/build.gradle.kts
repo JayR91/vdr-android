@@ -14,8 +14,8 @@ android {
         minSdk = 26
         // Google Play requires API 36 for new submissions from 31 Aug 2026.
         targetSdk = 36
-        versionCode = 20
-        versionName = "1.6.2"
+        versionCode = 23
+        versionName = "1.6.5"
         vectorDrawables.useSupportLibrary = true
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // No abiFilters: with FFmpeg gone the app ships no native libraries at
@@ -115,7 +115,8 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
-    implementation("com.android.billingclient:billing-ktx:7.1.1")
+    // Play rejects updates still on Billing Library 7 after 31 Aug 2026.
+    implementation("com.android.billingclient:billing-ktx:8.0.0")
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")

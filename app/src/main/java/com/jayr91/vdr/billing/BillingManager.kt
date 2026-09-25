@@ -51,6 +51,9 @@ class BillingManager(
         .enablePendingPurchases(
             PendingPurchasesParams.newBuilder().enableOneTimeProducts().build(),
         )
+        // Play drops the billing service; without this the client stays dead
+        // until the next process start and Restore looks broken.
+        .enableAutoServiceReconnection()
         .build()
 
     fun start() {
@@ -116,8 +119,15 @@ class BillingManager(
             _lastError.value = "Pro isn't available to buy right now. Try again later."
             return false
         }
+        val token = offer.offerToken
+        if (token.isNullOrBlank()) {
+            Log.w(TAG, "${ProGates.PRODUCT_ID} offer has no token")
+            _lastError.value = "Pro isn't available to buy right now. Try again later."
+            return false
+        }
         val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(details)
+            .setOfferToken(token)
             .build()
         val flow = BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(listOf(productParams))
@@ -147,13 +157,13 @@ class BillingManager(
         val params = QueryProductDetailsParams.newBuilder()
             .setProductList(listOf(product))
             .build()
-        client.queryProductDetailsAsync(params) { result, detailsList ->
+        client.queryProductDetailsAsync(params) { result, queryResult ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                 _lastError.value = billingMessage(result)
                 return@queryProductDetailsAsync
             }
-            // Billing 7.x listener second arg is List<ProductDetails>.
-            val list = detailsList
+            // Billing 8 hands back QueryProductDetailsResult, not the list.
+            val list = queryResult.productDetailsList
             _productDetails.value = list.firstOrNull()
             if (list.isEmpty()) {
                 // Expected while the product is not yet activated, but the

@@ -82,7 +82,7 @@ class QueueManager(
         destFile: File,
         displayName: String,
         category: String,
-        numSegments: Int = 8,
+        numSegments: Int = 4,
         scheduledAt: Long? = null,
         id: String = UUID.randomUUID().toString(),
         autoStart: Boolean = true,
@@ -154,6 +154,12 @@ class QueueManager(
     }
 
     fun find(id: String): DownloadTask? = synchronized(lock) { tasks.find { it.id == id } }
+
+    /** Unblock workers when the service is going away. Does not delete files. */
+    fun detachAll() {
+        val copy = synchronized(lock) { tasks.toList() }
+        copy.forEach { it.detach() }
+    }
 
     fun maybeStart() {
         if (focusPolicy == FocusGuard.POLICY_HOLD) return

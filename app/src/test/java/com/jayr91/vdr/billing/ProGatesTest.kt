@@ -83,4 +83,12 @@ class ProGatesTest {
     fun productId() {
         assertEquals("vdr_pro", ProGates.PRODUCT_ID)
     }
+
+    @Test
+    fun shareBatchFailsClosedForFree() {
+        val urls = listOf("https://example.com/a.mp4", "https://example.com/b.mp4")
+        val queued = if (ProGates.canBatchQueue(urls.size, isPro = false)) urls else urls.take(1)
+        assertEquals(1, queued.size)
+        assertEquals(urls, if (ProGates.canBatchQueue(urls.size, isPro = true)) urls else urls.take(1))
+    }
 }
