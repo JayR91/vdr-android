@@ -62,6 +62,8 @@ class DownloadTask(
     val stateFile: File get() = File(outputFile.absolutePath + ".vdrstate.json")
     private val running = AtomicBoolean(true)
     private val cancelled = AtomicBoolean(false)
+    /** Service is gone. Workers must exit without changing status or files. */
+    private val detached = AtomicBoolean(false)
     private val userPaused = AtomicBoolean(false)
     private val wifiHeldWhileActive = AtomicBoolean(false)
     @Volatile var status: DownloadStatus = if (scheduledAt != null) DownloadStatus.SCHEDULED else DownloadStatus.QUEUED
@@ -212,6 +214,17 @@ class DownloadTask(
 
     fun isCancelled(): Boolean = cancelled.get()
 
+    /**
+     * The service stops itself when nothing is transferring, which leaves
+     * paused workers blocked on [waitIfPaused]. The next start builds a new
+     * queue from disk. These workers have to leave without writing another
+     * byte and without marking the row cancelled.
+     */
+    fun detach() {
+        detached.set(true)
+        running.set(true)
+    }
+
     fun cancel() {
         cancelled.set(true)
         running.set(true)
@@ -254,6 +267,7 @@ class DownloadTask(
 
     private fun runInternal() {
         try {
+            if (detached.get()) return
             cancelled.set(false)
             running.set(true)
             DirectUrl.rejectionMessage(url)?.let { msg ->
@@ -326,6 +340,7 @@ class DownloadTask(
             stopMonitor.set(true)
             monitor.join(500)
 
+            if (detached.get()) return
             if (cancelled.get()) {
                 setStatus(DownloadStatus.CANCELLED)
                 stateFile.delete()
@@ -476,12 +491,14 @@ class DownloadTask(
         if (!outputFile.exists()) outputFile.createNewFile()
 
         for (i in startIndex until workUrls.size) {
+            if (detached.get()) return
             if (cancelled.get()) {
                 setStatus(DownloadStatus.CANCELLED)
                 stateFile.delete()
                 return
             }
             waitIfPaused()
+            if (detached.get()) return
             if (cancelled.get()) {
                 setStatus(DownloadStatus.CANCELLED)
                 stateFile.delete()
@@ -493,6 +510,7 @@ class DownloadTask(
                 return
             }
             val written = appendPartToFile(workUrls[i])
+            if (detached.get()) return
             if (cancelled.get()) {
                 setStatus(DownloadStatus.CANCELLED)
                 stateFile.delete()
@@ -673,11 +691,13 @@ class DownloadTask(
                         var read: Int
                         val stream = body.byteStream()
                         while (stream.read(buf).also { read = it } != -1) {
-                            if (cancelled.get()) return 0L
+                            if (cancelled.get() || detached.get()) return 0L
                             waitIfPaused()
-                            bucket.consume(read, cancelled::get) { running.get() && !cancelled.get() }
-                            if (cancelled.get()) return 0L
+                            if (detached.get()) return 0L
+                            bucket.consume(read, cancelled::get) { running.get() && !cancelled.get() && !detached.get() }
+                            if (cancelled.get() || detached.get()) return 0L
                             waitIfPaused()
+                            if (detached.get()) return 0L
                             fos.write(buf, 0, read)
                             written += read
                             speed.setDownloaded(streamBytes + written)
@@ -919,20 +939,33 @@ class DownloadTask(
                 }.build()
                 client.newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
+                    // A bounded range that comes back as 200 is the whole file.
+                    // Writing it at this segment's offset corrupts every later segment.
+                    val ranged = seg.end != -1L || rangeStart > 0
+                    if (ranged && resp.code != 206) {
+                        throw IllegalStateException("Server ignored the range request (HTTP ${resp.code})")
+                    }
                     val body = resp.body ?: throw IllegalStateException("empty body")
+                    val remaining = if (seg.end == -1L) Long.MAX_VALUE else (seg.end - rangeStart + 1)
                     RandomAccessFile(outputFile, "rw").use { raf ->
                         raf.seek(rangeStart)
                         val buf = ByteArray(65536)
-                        var read: Int
+                        var accepted = 0L
                         val stream = body.byteStream()
-                        while (stream.read(buf).also { read = it } != -1) {
-                            if (cancelled.get()) return
+                        while (accepted < remaining) {
+                            val read = stream.read(buf)
+                            if (read == -1) break
+                            if (cancelled.get() || detached.get()) return
                             waitIfPaused()
-                            bucket.consume(read, cancelled::get) { running.get() && !cancelled.get() }
-                            if (cancelled.get()) return
+                            if (detached.get()) return
+                            val take = min(read.toLong(), remaining - accepted).toInt()
+                            bucket.consume(take, cancelled::get) { running.get() && !cancelled.get() && !detached.get() }
+                            if (cancelled.get() || detached.get()) return
                             waitIfPaused()
-                            raf.write(buf, 0, read)
-                            synchronized(lock) { seg.downloaded += read }
+                            if (detached.get()) return
+                            raf.write(buf, 0, take)
+                            synchronized(lock) { seg.downloaded += take }
+                            accepted += take
                             speed.setDownloaded(bytesDownloaded())
                         }
                     }
@@ -952,7 +985,7 @@ class DownloadTask(
     }
 
     private fun waitIfPaused() {
-        while (!running.get() && !cancelled.get()) {
+        while (!running.get() && !cancelled.get() && !detached.get()) {
             Thread.sleep(80)
         }
     }
