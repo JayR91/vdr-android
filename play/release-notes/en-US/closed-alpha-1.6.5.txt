@@ -1,0 +1,1 @@
+Fixes downloads that could finish with a corrupted file when a server ignored a range request. Sharing several links at once now queues one file on the free plan. Billing uses Play Billing Library 8, which Google requires for updates.

@@ -38,6 +38,7 @@ import com.jayr91.vdr.storage.PublicStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -137,7 +138,9 @@ class DownloadService : Service() {
                     try {
                         val pro = ProEntitlement.isPro(this@DownloadService)
                         val allowed = ProGates.clampSegments(segments, pro)
-                        urls.forEach { addUrl(it, allowed, schedule) }
+                        // Share-in used to queue every URL in the text. Free is one at a time.
+                        val toQueue = if (ProGates.canBatchQueue(urls.size, pro)) urls else urls.take(1)
+                        toQueue.forEach { addUrl(it, allowed, schedule) }
                     } finally {
                         pending.decrementAndGet()
                         settle()
@@ -610,6 +613,8 @@ class DownloadService : Service() {
     override fun onDestroy() {
         stopped = true
         isForeground = false
+        queue.detachAll()
+        scope.cancel()
         unregisterReceiver(powerReceiver)
         networkCallback?.let { cb ->
             runCatching {
